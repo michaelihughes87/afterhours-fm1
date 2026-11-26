@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include "../firmware/hal/fm1_flash_id.h"
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
 #define FELUCCA_OTA 1
