@@ -44,7 +44,7 @@ typedef struct {
     uint16_t c[5];
 } palette_t;
 static const palette_t PALETTES[] = {
-    {"RAINBOW", {RGB(18, 38, 56), RGB(25, 89, 106), RGB(106, 166, 169), RGB(245, 112, 64), RGB(255, 222, 126)}},
+    {"GREEN", {RGB(0, 40, 12), RGB(0, 84, 30), RGB(16, 140, 54), RGB(56, 200, 92), RGB(120, 255, 146)}},
     {"AMBER", {RGB(60, 26, 0), RGB(110, 50, 0), RGB(170, 82, 0), RGB(225, 120, 8), RGB(255, 166, 40)}},
     {"CYAN", {RGB(0, 30, 50), RGB(0, 62, 96), RGB(16, 112, 160), RGB(56, 172, 222), RGB(140, 222, 255)}},
     {"RED", {RGB(52, 8, 8), RGB(100, 18, 14), RGB(170, 36, 26), RGB(226, 64, 48), RGB(255, 112, 92)}},
@@ -79,12 +79,12 @@ _Static_assert(sizeof(theme_t) == 40u, "theme layout (the editor's Theme page wr
 static theme_t theme;                            /* the theme there is (theme_valid: project.c theme_check passed) */
 static uint8_t theme_valid, theme_on;
 /* the tracks' colours: full, two thirds, one third (the built-in ones as they always were) */
-static const uint16_t TE_COL_DEF[4] = {RGB(8, 206, 213), RGB(246, 72, 49), RGB(255, 194, 57), RGB(57, 210, 139)};
-static const uint16_t TE_MID_DEF[4] = {RGB(0, 137, 139), RGB(164, 48, 32), RGB(164, 129, 32), RGB(32, 137, 90)};
-static const uint16_t TE_DIM_DEF[4] = {RGB(0, 68, 65), RGB(82, 24, 16), RGB(82, 64, 16), RGB(16, 68, 41)};
-static uint16_t TE_COL[4] = {RGB(8, 206, 213), RGB(246, 72, 49), RGB(255, 194, 57), RGB(57, 210, 139)};
-static uint16_t TE_MID[4] = {RGB(0, 137, 139), RGB(164, 48, 32), RGB(164, 129, 32), RGB(32, 137, 90)};
-static uint16_t TE_DIM[4] = {RGB(0, 68, 65), RGB(82, 24, 16), RGB(82, 64, 16), RGB(16, 68, 41)};
+static const uint16_t TE_COL_DEF[4] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 98, 26)};
+static const uint16_t TE_MID_DEF[4] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(170, 66, 18)};
+static const uint16_t TE_DIM_DEF[4] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(86, 32, 8)};
+static uint16_t TE_COL[4] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 98, 26)};
+static uint16_t TE_MID[4] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(170, 66, 18)};
+static uint16_t TE_DIM[4] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(86, 32, 8)};
 static uint16_t rgb565_scale(uint32_t c, uint32_t num, uint32_t den)
 {
     uint32_t r = ((c >> 11) & 31u) * num / den, g = ((c >> 5) & 63u) * num / den, b = (c & 31u) * num / den;
