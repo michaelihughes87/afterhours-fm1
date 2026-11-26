@@ -48,6 +48,9 @@ jobs:
         run: |
           mkdir -p "$GITHUB_WORKSPACE/.jieli"
           bash tools/get_toolchain.sh "$GITHUB_WORKSPACE/.jieli"
+          TOOLCHAIN_VERSION="$(basename "$(readlink -f "$JIELI_TOOLCHAIN")")"
+          echo "Verified JieLi toolchain: $TOOLCHAIN_VERSION"
+          test "$TOOLCHAIN_VERSION" = "jieli-linux-toolchains-20260730.1"
 
       - name: Download pinned AC79 SDK
         run: |
