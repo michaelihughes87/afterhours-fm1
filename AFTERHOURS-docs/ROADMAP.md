@@ -1,63 +1,96 @@
-# Development roadmap
+# AFTERHOURS — development roadmap
 
-## Phase 0 — Establish a reproducible baseline
+## Phase 0 — Reproducible baseline
 
-- [ ] Import upstream SLOOP source, preserving full history and attribution.
-- [ ] Record upstream commit, release baseline and firmware identity.
-- [ ] Build unmodified upstream on the Mac.
-- [ ] Run all upstream host / regression tests.
-- [ ] Archive known-good build outputs.
-- [ ] Confirm current FM-1 firmware and hardware / flash-chip revision before any install.
+- [x] Import the SLOOP-derived firmware and preserve its source attribution.
+- [x] Add a repeatable GitHub Actions firmware build.
+- [x] Repair the editor host-test include and restore the original SLOOP palette baseline.
+- [x] Calibrate compiler-derived target-cost references for the verified JieLi toolchain.
+- [x] Add a toolchain-version guard.
+- [x] Produce a passing baseline build at commit `46e51ce`.
+- [x] Keep the baseline on `main` and create the isolated `afterhours-five-track` development branch.
 
-**Exit condition:** reproducible build, tests pass, recovery route understood.
+**Exit condition:** reproducible firmware package, host / audio regression suite green, and a recoverable baseline retained. This phase is complete.
 
-## Phase 1 — Product identity and preset experience
+## Phase 1 — Lock the five-track product
 
-- [ ] AFTERHOURS visual identity and colour system.
-- [ ] Curated factory preset and kit names / categories.
-- [ ] First trip-hop, post-punk and industrial starter projects.
-- [ ] Sound design across existing SLOOP engines.
-- [ ] Retain SLOOP sequencing / project functions unchanged.
+- [x] Confirm five visible tracks: DRUMS, PERCUSSION synth, BASS, AFTER POLY, TEXTURE / SECOND SYNTH.
+- [x] Confirm four flexible synth parts plus one dedicated drum-machine part.
+- [x] Confirm PERCUSSION is a role and preset collection, not a restricted engine.
+- [ ] Update all product, architecture, sound-design and preset documents consistently.
+- [ ] Define the visible track order separately from internal synth-part indices.
+- [ ] Define old-project migration behaviour and acceptance criteria.
 
-## Phase 2 — Six-track architecture spike
+**Exit condition:** one consistent product and architecture specification with no remaining six-track / two-drum-track assumptions.
 
-- [ ] Map all SLOOP track and part arrays, serialization, UI, MIDI and FX assumptions.
-- [ ] Prototype six independent parts based on the SLOOP architecture.
-- [ ] Evaluate selective port/adaptation of JIANT six-part design.
-- [ ] Validate two DRUM-X tracks as independent engines with independent kits.
-- [ ] Build / test project migration and storage compatibility.
-- [ ] Benchmark CPU / RAM and audio dropouts on worst-case content.
+## Phase 2 — Architecture and resource investigation
 
-**Exit condition:** six tracks pass structural, storage, MIDI and audio stress tests. If not, evaluate a five-track fallback rather than shipping unstable six-track operation.
+- [ ] Enumerate every `NPART`, `NTRK`, `TRK_DRUM`, track-order, voice, MIDI, UI and storage assumption.
+- [ ] Generate and review a linker map; measure engine arena sizes and the exact cost of a fourth synth arena.
+- [ ] Decide the memory region for four engine arenas without consuming the required pool reserve or threatening stack / ISR memory.
+- [ ] Audit voice allocation, dual-core render units, FX state and all per-track runtime arrays.
+- [ ] Design project format 7 or later, including worst-case size and power-loss-safe A/B storage.
+- [ ] Audit the complete FM-1 flash map before any storage reallocation.
+- [ ] Define four synth MIDI channels plus the separate drum channel and settings migration.
+- [ ] Define the five-colour theme compatibility strategy and web editor protocol changes.
+- [ ] Prototype the five-row mixer layout within the 240 × 240 screen.
 
-## Phase 3 — Mixer and sound engines
+**Exit condition:** a measured implementation design that fits flash, RAM, CPU and screen constraints without data loss.
 
-- [ ] Fast six-strip mixer and per-track effects / sends.
-- [ ] Independent drum-track processing and complete kit access.
-- [ ] Extend SLOOP ANALOG into AFTER POLY.
-- [ ] Preset bank for two-oscillator poly pads, plucks, leads and bass.
-- [ ] Add TAPE / DUST / DRIFT / SPACE / DECAY only after DSP budget measurement.
+## Phase 3 — Five-track engine and sequencer
 
-## Phase 4 — Reactive visual instrument
+- [ ] Implement four contiguous synth parts plus one dedicated drum part.
+- [ ] Introduce and test explicit visible-order / internal-index mapping.
+- [ ] Extend voice allocation and engine-state ownership to four synth parts; retain a shared eight-voice budget initially.
+- [ ] Extend sequencing, parameter locks, live recording, undo, song sections, mute / solo and panic behaviour.
+- [ ] Extend USB / TRS MIDI routing to four synth channels and one drum channel.
+- [ ] Extend mixer routing, inserts, sends, meters and dual-core scheduling.
+- [ ] Implement the new project format and tested migration from formats 1–6.
+- [ ] Add host tests for five-track independence, compatibility, storage and recovery.
 
-- [ ] Distinct sound-reactive visual for each engine.
-- [ ] Drum-kit colony graphic.
-- [ ] Oscillator / filter visual for AFTER POLY.
-- [ ] Track-colour and graphic theme settings.
-- [ ] Reduced-motion and high-contrast alternative.
-- [ ] Frame-rate and audio-load tests during animation.
+**Exit condition:** all five tracks work independently in host tests, all existing projects migrate safely, and the firmware passes audio and resource gates.
 
-## Phase 5 — Release readiness
+## Phase 4 — Musical identity and sound library
 
-- [ ] Save/load migration tests and backup / restore rehearsal.
-- [ ] MIDI, USB audio, editor and long-session testing.
-- [ ] Actual-device beta testing across supported FM-1 hardware revisions.
-- [ ] Licence, asset attribution, source and recovery documentation.
-- [ ] Public release only after a verified install and recovery procedure.
+- [ ] Extend the existing ANALOG engine into the AFTER POLY sound identity; avoid a duplicate oscillator engine unless necessary.
+- [ ] Create percussion-focused presets across several existing engines for T2 while preserving unrestricted engine selection.
+- [ ] Create a coherent bass preset bank for T3.
+- [ ] Create main poly presets for T4 and textures / secondary synth presets for T5.
+- [ ] Curate original / properly licensed drum kits for the dedicated drum machine.
+- [ ] Balance default levels, envelopes, tuning and performance ranges across all factory sounds.
+- [ ] Create starter projects demonstrating trip-hop, post-punk, dub, broken-beat and experimental workflows.
 
-## Non-goals for the first build
+**Exit condition:** a useful, level-balanced instrument with compelling presets and no default clipping or abrupt level surprises.
 
-- A literal Prophet '08 clone.
-- Six independent full insert FX chains per drum lane before CPU testing.
-- High-cost granular / convolution processing before profiling.
-- Cosmetic animations that obscure controls or interrupt audio.
+## Phase 5 — AFTERHOURS interface and visual identity
+
+- [ ] Replace SLOOP identity with AFTERHOURS naming, boot screen and visual system.
+- [ ] Implement the five-track mixer overview and predictable track navigation.
+- [ ] Implement five distinguishable track colours with backward-compatible theme storage and editor support.
+- [ ] Design original dark-ink / marbled-pigment graphics using teal, vermilion, amber and emerald.
+- [ ] Build engine-specific reactive visuals for drums, analogue, FM, physical models, sample, noise and grain.
+- [ ] Preserve readable values, fast parameter editing, high contrast and a reduced-motion option.
+- [ ] Profile rendering so visual activity never causes audio dropouts.
+
+**Exit condition:** the hardware interface is recognisably AFTERHOURS, five-track operation is clear, and the interface remains responsive while playing.
+
+## Phase 6 — Validation and release
+
+- [ ] Run all existing host tests and add targeted five-track regression tests.
+- [ ] Run worst-case CPU, RAM, stack, dual-core and audio-continuity tests.
+- [ ] Test project import / export, autosave, A/B recovery and interrupted writes.
+- [ ] Test MIDI, USB audio, editor, theme import / export and long sessions.
+- [ ] Verify both known FM-1 flash IDs: `0x856014` and `0xB36014`.
+- [ ] Make a full hardware backup before the first install.
+- [ ] Install only after package identity, flash compatibility and recovery route are verified.
+- [ ] Rehearse recovery and document the exact release / rollback procedure.
+
+**Exit condition:** an actual pink FM-1 runs the new firmware reliably, saves and restores projects, and can be recovered using the documented procedure.
+
+## Non-goals for the first release
+
+- No second dedicated drum machine.
+- No six-track target.
+- No literal Prophet '08 clone.
+- No costly DSP or full-screen visual effects without measured headroom.
+- No install of the unfinished five-track architecture.

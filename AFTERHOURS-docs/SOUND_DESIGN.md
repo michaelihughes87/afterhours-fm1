@@ -1,4 +1,4 @@
-# AFTERHOURS sound design specification
+# AFTERHOURS — sound design specification
 
 ## Direction
 
@@ -12,25 +12,39 @@ Hybrid analogue warmth + digital grime. The aim is musical character and dynamic
 - Broken-beat / experimental dance: detailed microtiming, syncopation, evolving loops and field-recording textures.
 - Melodic electronic: warm bass lines, repeating motifs and lush polyphonic chords.
 
-## Drum sound palette
+## Five-track sound roles
 
-### Main kit track
-808 / 909 / 606-style electronic kits, classic drum-machine voices, acoustic kits, dry / roomy snares, kicks, toms, claps, hats, cymbals, rimshots and break kits.
+1. **DRUMS — dedicated drum machine.** The conventional 16-lane kit instrument, with electronic, acoustic, hip-hop / breakbeat, dance, dub and industrial families.
+2. **PERCUSSION — flexible synth.** A standard synth part with access to every engine. The factory bank should make it immediately useful for tuned percussion and rhythmic timbres, but it is not restricted to percussion.
+3. **BASS — flexible synth.** Deep sub, mono bass, acid sequences, driven midrange and FM / digital bass.
+4. **AFTER POLY — flexible synth.** Main analogue-style polyphonic voice, pads, chords, plucks and leads.
+5. **TEXTURE / SECOND SYNTH — flexible synth.** Atmospheres, strings, noise, sample manipulation, FM textures and supplementary leads / chords.
 
-### Percussion / industrial track
-Metal strikes, sheet-metal resonances, chains / machine clanks, concrete / wood impacts, processed acoustic hits, noise bursts, distorted claps, reverse hits, shakers and found-sound percussion.
+These are factory defaults and curated preset roles, not track locks. Any synth track can load any available synth engine.
 
-### Per-kit treatment
-Any kit should be able to use the same track insert and send options. Proposed effects:
-- FILTER: LP / HP / BP, resonance and envelope where available.
-- DRIVE: tape-like saturation, soft clip, fuzz or hard distortion.
-- CRUSH: bit reduction and sample-rate reduction.
-- MOD: chorus, flange, phase and ring-like movement where affordable.
-- SPACE: dark reverb and short room.
-- ECHO: tempo sync, feedback and filtered repeats.
-- TRANSIENT / SHAPE: tune, decay, attack and lane envelope shaping.
+## Dedicated drum-machine palette
 
-Give each drum track independent processing, with shared FX buses where possible. Per-hit full insert processing is optional and must pass CPU tests.
+The drum identity must be broad rather than exclusively industrial:
+- Electronic: 808 / 909 / 606-inspired kicks, snares, hats, claps, toms and cymbals.
+- Acoustic / live: dry and roomy kits, tight and loose snares, rimshots, toms, brushes and room hits.
+- Hip-hop / break: dusty breaks, chopped hits, boom-bap and loose swing.
+- Dance: house, electro, techno, jungle / DnB and UKG.
+- Dub / organic: hand percussion, shakers, congas, rim / wood and sparse accents.
+- Post-punk / industrial: hard room snare, trashy acoustic kit, metal, clangs, impacts, noise bursts and processed objects.
+
+Retain the existing 16 lanes as the starting point. Any per-lane feature expansion must be measured against CPU and storage limits.
+
+## Percussion-synth preset direction
+
+Build a curated bank across multiple engines, not one dedicated percussion engine:
+- **PHYS:** modal bells, bars, struck plates, membrane toms, plucked metal / string objects.
+- **FM6:** metallic operators, tuned hits, clangs, brittle bells and inharmonic attacks.
+- **DRAWBAR:** percussive partials, short organ stabs and unusual struck registrations.
+- **SAMPLE:** tuned found sounds, wood / metal hits and short acoustic material where licensed.
+- **NOISE / DIGITAL:** noise bursts, clicks, zaps, synthetic hats and transient textures.
+- **ANALOG:** short envelopes, resonant filter strikes, pulse plucks and tuned tom-like voices.
+
+Percussion presets should have short, useful envelopes, safe default levels, clear tuning and musically useful pitch ranges. They must remain editable and must not stop the player loading a pad, bass or sustained sound on T2.
 
 ## Bass
 
@@ -38,6 +52,7 @@ Give each drum track independent processing, with shared FX buses where possible
 - Mono bass, portamento and sequenced slides.
 - Driven midrange bass for post-punk / industrial sequences.
 - Filter envelope and accent response.
+- FM / digital bass as a contrasting option.
 
 ## AFTER POLY
 
@@ -49,11 +64,7 @@ Prophet '08-inspired, not a clone:
 - LFO and compact modulation routing.
 - Unison / voice spread, poly glide, chorus and drive.
 
-## FM / digital
-
-- Six-operator FM metallic percussion, electric-piano-like chords and glassy dissonance.
-- Digital bass, inharmonic textures, unstable noise and brittle transients.
-- Lo-fi reduction should be controllable, not baked into everything.
+Extend and voice the existing ANALOG engine first. Keep the sound musical at default levels and validate oscillator / filter changes for clicks and aliasing.
 
 ## Texture
 
@@ -76,6 +87,6 @@ Prophet '08-inspired, not a clone:
 - No clicks on parameter changes or bypass.
 - No runaway feedback or DC offset.
 - No unexpected clipping at default preset levels.
-- CPU measured against upstream baseline.
+- CPU measured against the passing baseline and tested under five-track worst-case load.
 - Parameters save and recall exactly.
 - Bypass is level-matched closely enough to judge the effect.

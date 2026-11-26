@@ -1,116 +1,102 @@
-# AFTERHOURS — track architecture, drums and mixer
+# AFTERHOURS — five-track architecture
 
 ## Decision
 
-Target **six independent tracks**, with two drum/percussion tracks and four melodic / texture tracks. Treat five tracks as a fallback if six cannot meet measured performance and usability targets.
+The agreed product is **five visible tracks**: one dedicated drum-machine track and four independent, flexible synth parts. Six tracks are no longer the target.
 
-This is a deliberate architectural extension, not a small theme change.
-
-## What the source projects establish
-
-- SLOOP 2.8.5's `firmware/src/core.h` defines `NPART 3` and `NTRK 4`: three synth parts plus a dedicated drum track.
-- JIANT's `firmware/src/core.h` defines `NPART 6` and `NTRK NPART`: six parts.
-- JIANT's DRUM-X (`firmware/src/eng_drum.c`) is an engine on a part, rather than a globally fixed drum track. Its kit has eight lanes; each lane has its own sound and per-hit behaviour.
-- SLOOP's `firmware/src/eng_analog.c` already provides two band-limited oscillators, detune, noise, drive and a trapezoidal state-variable filter.
-- JIANT demonstrates sound-reactive engine / kit imagery in `firmware/src/ui_being.c` and related UI files.
-
-Sources:
-- https://github.com/isod89/sloop-fm1/blob/main/firmware/src/core.h
-- https://github.com/isod89/sloop-fm1/blob/main/firmware/src/eng_analog.c
-- https://github.com/abcdaniel/JIANT/blob/main/firmware/src/core.h
-- https://github.com/abcdaniel/JIANT/blob/main/firmware/src/eng_drum.c
-- https://github.com/abcdaniel/JIANT/blob/main/firmware/src/ui_being.c
-
-## Proposed default layout
-
-| Track | Default engine / role | Key sound |
+| Visible track | Role | Implementation |
 |---|---|---|
-| T1 | DRUM-X / main drums | Kick, snare, hats, clap, toms |
-| T2 | DRUM-X / percussion | Breaks, industrial hits, metallic percussion, found sounds |
-| T3 | ANALOG / bass | Sub and mono bass |
-| T4 | AFTER POLY / main poly | Two-oscillator, Prophet-inspired polysynth |
-| T5 | AFTER POLY / second poly | Pads, strings, chord movement |
-| T6 | FM6 / SAMPLE / NOISE / lead-texture | Flexible top line and atmosphere |
+| T1 | DRUMS | Existing dedicated 16-lane drum machine |
+| T2 | PERCUSSION | Ordinary synth part; any engine may be loaded; percussion presets are a curated starting point |
+| T3 | BASS | Flexible synth part |
+| T4 | AFTER POLY | Flexible synth part; extend the existing ANALOG engine first |
+| T5 | TEXTURE / SECOND SYNTH | Flexible synth part for pads, FM, samples, noise, leads and atmosphere |
 
-Where feasible, retain track-engine flexibility so the user can change roles rather than being locked to the default layout.
+Roles are defaults, not locks. In particular, T2 must not become a second special drum instrument or a percussion-only engine.
 
-## Drum design
+## Baseline source facts
 
-Two independent DRUM-X parts should each have:
-- Their own kit and pattern, with independent level, pan, mute, solo, sends and insert effect.
-- At least eight simultaneously useful drum lanes per kit; investigate preserving SLOOP's 16-sound / key mapping if screen and memory budgets allow.
-- Per-lane level / velocity response, tune, decay, pan, mute and sound selection as supported by the base engine.
-- Common insert families available to either drum track: filter, drive / distortion, bit reduction / crush, modulation, delay and reverb.
-- Track-level effects and sends so a kit's whole sound can be processed, while avoiding a costly separate full insert chain on every lane unless benchmarks permit.
-- Choke groups for open/closed hats and other mutually exclusive percussion.
-- Kick / snare priority in voice stealing; busy hats must not steal the kick.
+The passing baseline is commit `46e51ce433e9e73c8d6cac0e8eeebfce519feb2c`, based on SLOOP 2.8.5 / Felucca.
 
-Factory kit families:
-1. Classic electronic: 808, 909, 606, Linn-style, CR-78-inspired.
-2. Acoustic / live: dry, roomy, tight, loose, brush / rim / tom variants.
-3. Hip-hop / break: dusty breaks, chopped kits, boom-bap.
-4. Dance: house, electro, techno, jungle / DnB, UKG.
-5. Dub / organic: hand percussion, shakers, congas, rim / wood.
-6. Post-punk / industrial: hard room snare, trashy acoustic kit, metal, clangs, impacts, noise bursts, processed objects.
+- `firmware/src/core.h` currently defines `NPART 3`, `NTRK 4`, and `TRK_DRUM 3`.
+- The synth parts occupy `trk[0..2]`; the dedicated drum part occupies `trk[3]`.
+- `track_t` combines persistent track parameters and pattern data with substantial runtime state.
+- `voice.c` treats `NVOICE 8` as a shared sounding-voice budget across the synth parts.
+- `engines.c` allocates one large engine-state arena per synth part in `.pool`.
+- `fx.c` sizes synth insert state, render units and dual-core masks around `NPART`; the drum insert has its own four-channel state.
+- MIDI settings currently expose three synth channels plus the drum channel.
+- `ui_studio.c` draws four track rows at 36 pixels each and reserves the lower display for four knob readouts.
+- `gfx.c` has four track colours in both the built-in palette and the saved `theme_t` record.
+- `project.c` uses project format 6. Its current project object is 3,816 bytes against a 3,840-byte storage payload limit. Format 5 is exactly 3,840 bytes.
+- `storage.c` uses A/B copies in 4 KiB sectors; the 3,840-byte payload limit is intentional, not spare project space.
 
-These are tonal categories, not promises to include copyrighted samples or exact drum-machine ROMs. Use properly licensed / original / CC0 sample material, with attribution where required.
+## Internal indices versus visible order
 
-## Mixer
+Keep the four synth parts contiguous internally where that reduces risk to DSP code. A candidate first implementation is `NPART 4`, `NTRK 5`, and `TRK_DRUM 4`, with a single explicit mapping for visible order `[TRK_DRUM, 0, 1, 2, 3]`.
 
-The core mixer view should make six strips immediately understandable:
-- Track name / colour and compact level meter.
-- Level, pan, mute and solo.
-- Send levels for delay, reverb and modulation.
-- One quick-access tone control / filter.
-- Track select and clear indication of the active track.
+Do not let display row number silently become an internal `trk[]` index. Introduce and test explicit helpers for visible-position-to-track-index and track-index-to-visible-position. Apply the mapping consistently to the track selector, LIVE / TRACKS screen, LEDs, layers, recording indicators, mute / solo, arrangement sections, web editor and any UI labels. Internal synth loops should continue to address the contiguous synth range; all-track loops should include the drum track exactly once.
 
-Secondary pages can expose inserts, routing and detailed parameters. Drum tracks should also expose their kit identity and a quick access to the drum lanes. The web editor can provide a larger mixer for detailed balancing and sound management.
+The selected track may remain an internal track index if that is least disruptive, but every user-facing navigation path must follow the visible order. Document the distinction in code and test it.
 
-Master page:
-- Master level and peak indicator.
-- Main EQ / filter.
-- Limiter / soft clip only where safe and measurable.
-- Shared time-based effects with controllable sends / returns.
-- Optional kick-triggered ducking / sidechain-style movement.
+## Audio parts, voices and engine state
 
-## AFTER POLY synthesis
+- Start with the existing global budget of eight simultaneously sounding synth voices shared fairly across all four synth parts. A fourth synth part must not silently multiply the budget to 32 voices.
+- Keep engine-specific polyphony limits (for example, the existing lower caps of GRAIN and PHYS) and make percussion presets responsive and controlled. Do not hard-lock T2 to one engine or one fixed voice count.
+- Audit voice allocation, voice stealing, held notes, mono / legato / unison, strum, note-off, pending engine changes and preset fades for all four parts.
+- Add the fourth `eng_arena` slot only after measuring `sizeof(eng_arena_t)` and reviewing the linker map. The current pool is 333,900 / 344,064 bytes, with an 8,192-byte reserve; its headroom is too small to assume another arena fits.
+- `.data + .bss` currently uses 59,340 / 98,304 bytes, leaving 38,964 bytes before other changes. Assess moving long-lived engine arenas from `.pool` to `.bss` or another explicit memory region. Verify the exact map and stack/interrupt constraints; do not move memory by guesswork.
+- Preserve dual-core correctness: render-unit masks, part buffers, FM6 operator buses, PHYS random draws, FORMANT constraints, INSERT state and drum rendering must all remain race-free.
 
-First prototype by extending SLOOP ANALOG rather than duplicating it. Preserve band-limited oscillators and test:
-- Two-oscillator blend and fine tuning.
-- Pulse width and modulation.
-- Oscillator sync if budget permits.
-- Optional sub / noise.
-- Filter envelope, amp envelope and LFO modulation.
-- Unison spread and poly glide.
+## Sequencing, mixer, effects and MIDI
 
-The FM-1 is a constrained embedded device. Do not promise eight simultaneous voices on all six tracks. Use configurable voice caps, predictable voice stealing and load-aware quality modes. Measure a worst-case song with both drum kits active, two poly tracks playing chords, effects running and the display updating.
+- Every synth part gets its own 64-step note pattern, engine, preset, parameters, voice state, locks and performance controls.
+- The drum machine retains its own 64-step / 16-lane pattern and kit data.
+- Audit every array and bitmask sized by `NPART` or `NTRK`, including `vis_note`, `note_hits`, `ex_off`, recording masks, solo masks, mute state, panic handling, undo, strum queues, step-entry queues and live recording.
+- Expand synth MIDI channel assignment from three to four distinct channels; retain a separate configurable drum channel. Migrate the settings record without changing existing users' channel assignments unexpectedly.
+- Check USB MIDI, TRS MIDI, clock, program change, CC, remote control and MIDI learn routing.
+- The mixer must show five tracks in visible order. The existing 36-pixel row does not leave room for five rows plus the current knob footer. Prototype a compact row around 28 pixels high, retaining number, name / engine, record / mute / solo, a useful 16-step overview and level meter. Keep detailed sends / inserts on secondary pages.
+- Keep the dedicated drum processing path. Do not accidentally allocate the drum INSERT as a synth INSERT or render the drum track as an ordinary synth part.
 
-## Visual system
+## Project format and persistent storage
 
-The display is an instrument surface, not a dashboard:
-- Use a vivid palette (acid lime, cyan, violet, coral, amber and warm cream) with high legibility.
-- Each track and sound engine gets a recognisable visual species / signal motif.
-- Animate from existing signal metrics and parameter values; avoid expensive full-screen effects.
-- Show audio energy, filter movement, oscillator beating and drum hits in ways that help the player understand the sound.
-- Allow a low-motion / reduced-animation option and a simpler contrast-focused theme.
+This is a release-blocking design task.
 
-## Structural risks and tests
+- Project format 6 is 3,816 bytes and is almost at the 3,840-byte object limit. A naive fifth `proj_trk_t` will exceed it.
+- Do not enlarge `project_t` and hope `st_save()` accepts it. `storage.c` rejects payloads larger than `ST_PAYLOAD_MAX`.
+- Design a new versioned project representation, with checksum and explicit length, and prove that worst-case fully populated patterns, all parameter locks and all five track states fit the chosen storage strategy.
+- Evaluate compact / variable-length per-track encoding and a multi-sector A/B object strategy against the actual flash map. Keep power-loss safety: a torn save must leave the previous valid copy recoverable.
+- Audit the flash map before reallocating anything. Preserve four project / section slots, working-project autosave, settings, MIDI settings, user presets, FM6 patches, four user-sample slots and factory data. Do not take space from a sample or preset region without proving the layout and migration.
+- Import format 6 and older formats by preserving all old content: old synth tracks 1–3 map, in order, to new visible T2–T4; the old dedicated drum track maps to visible T1; new visible T5 starts empty with the appropriate default sound. This preserves user material even though the new role labels differ from old roles.
+- Test load, save, power loss during save, autosave, A/B fallback, arrangement sections, drum tuning / decay, user presets and sample data on both supported flash-chip revisions.
 
-Six tracks touches more than an array size. Audit:
-- Track/part arrays, UI navigation and track selection.
-- MIDI channel allocation and remote control mapping.
-- Song / pattern serialization and project migrations.
-- Flash storage, autosave and user presets.
-- Mixer / FX routing, dual-core scheduling and audio buffers.
-- Tests, emulator/editor state and documentation.
+## Theme, graphics and editor compatibility
 
-No old project should be silently corrupted. Build a tested import / migration path for existing SLOOP projects before changing storage layouts.
+- Current `theme_t` stores four track colours in a 40-byte THM2 record. The web editor writes this record.
+- Define a backward-compatible five-colour theme revision (for example, THM3) or a carefully tested derived fifth colour. If changing the record, keep THM1 and THM2 readable and update the web editor's theme protocol in the same release.
+- Check fixed four-element arrays and loops throughout `gfx.c`, `ui_draw.c`, `ui_vis.c`, `ui_studio.c`, the theme import/export path and the offline web editor.
+- The visual language is an original AFTERHOURS treatment: dark ink-like field, layered / marbled pigment, turquoise / teal, vermilion / orange, amber and emerald. The *In Rainbows* reference is mood only; do not reproduce the artwork.
+- The interface remains a 240 × 240 instrument surface. Keep values and editing legible, animations low-cost and optional, and the existing small-canvas / lazy-redraw model unless profiling justifies a change.
+- Create engine-specific reactive imagery from existing audio / parameter metrics. Visualisers must not add work to the audio ISR or cause missed audio deadlines.
 
-Required tests:
-1. Load / save existing SLOOP projects and verify their content.
-2. Six tracks active with independent patterns and mixer state.
-3. Both drum tracks play simultaneously, including busy hats and kick priority.
-4. Two poly tracks playing chords while drums and effects run.
-5. MIDI clock, USB audio and external MIDI on all intended tracks.
-6. CPU / RAM and audio-dropout tests under worst-case load.
-7. Long-session save / load and recovery tests on actual FM-1 hardware.
+## Required acceptance tests
+
+1. Four synth parts plus the dedicated drum machine initialise with the correct defaults and visible ordering.
+2. Each synth can load every supported engine and change presets independently.
+3. The percussion role plays tuned percussion presets but can also load a normal bass, pad, sample or lead sound.
+4. Drum sequencing, 16 lanes, kit changes and drum sound editing remain independent of synth sequencing.
+5. All five tracks have independent level, pan, mute, solo, recording, patterns and supported effects.
+6. Four synth MIDI channels and the separate drum channel route correctly over USB and TRS.
+7. Existing SLOOP projects import without losing patterns, sounds, locks, sections or drum data; new projects save and load worst-case content.
+8. Autosave, power-loss recovery and A/B storage fallback pass destructive host simulation and device tests.
+9. CPU, RAM, pool, stack, dual-core and audio-dropout tests pass under worst-case simultaneous use.
+10. The five-track UI is readable and operable on the FM-1 hardware; all five tracks are selectable in the expected order.
+11. Visual animation does not interfere with input, display updates or audio continuity.
+12. Installation and recovery are rehearsed on the actual FM-1 before release.
+
+## Non-goals for the first architecture milestone
+
+- No second dedicated drum machine; T2 is a flexible synth part.
+- No promise of eight voices per synth part; the initial synth voice budget stays shared.
+- No new expensive DSP or full-screen framebuffer before profiling.
+- No destructive project or settings migration.
+- No firmware installation on the pink FM-1 until the new architecture and recovery path pass.
