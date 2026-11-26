@@ -197,13 +197,16 @@ def build_app():
        OUT / "fm1_cpu1.o", OUT / "felucca.o", "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin"):
         (OUT / sect).unlink(missing_ok=True)
-    *_, syms, dis, rt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
-                               ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
-                               ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
-                               ("common/bin/objcopy", "-O", "binary", "-j", ".c1_text", elf, OUT / "c1text.bin"),
-                               ("common/bin/objdump", "-t", elf),
-                               ("common/bin/objdump", "-d", elf),
-                               ("common/bin/objdump", "-d", "-j", ".ram_text", elf))
+    *_, syms, sections, dis, rt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
+                                        ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
+                                        ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
+                                        ("common/bin/objcopy", "-O", "binary", "-j", ".c1_text", elf, OUT / "c1text.bin"),
+                                        ("common/bin/objdump", "-t", elf),
+                                        ("common/bin/objdump", "-h", elf),
+                                        ("common/bin/objdump", "-d", elf),
+                                        ("common/bin/objdump", "-d", "-j", ".ram_text", elf))
+    (OUT / "felucca.sym").write_text(syms)
+    (OUT / "felucca.sections.txt").write_text(sections)
     (OUT / "felucca.dis").write_text(dis)
 
     def symv(name):
@@ -253,17 +256,59 @@ def check(img, syms, dis, rt):
         errors.append(f"image {len(img)} B exceeds the app slot")
 
     def sym(name):
-        mm = re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M)
+        mm = re.search(r"^([0-9a-f]+) .*\s" + re.escape(name) + r"$", syms, re.M)
         return int(mm.group(1), 16) if mm else 0
+
+    def sym_size(name):
+        # GNU objdump -t: address, binding/type, section, size, symbol.
+        for line in syms.splitlines():
+            fields = line.split()
+            if len(fields) >= 5 and fields[-1] == name:
+                try:
+                    return int(fields[-2], 16)
+                except ValueError:
+                    pass
+        return 0
+
     bss = sym("_bss_end") - 0x01C08000
     pool = sym("_pool_end") - sym("_pool_start")
     lowram = sym("_lr_end") - sym("_lr_start")    # the SRAM below the RAM region (app.ld .lowram), up to 0x01C07F00
+    noinit = sym("_noinit_end") - sym("_noinit_start")
+    noinit_cap = 0x3D50
     notes.append(f"image {len(img)} B; RAM .data+.bss {bss} B of 98304; lowram {lowram} B of "
-                 f"{0x01C07F00 - sym('_lr_start')}; pool {pool} B of {0x54000}")
+                 f"{0x01C07F00 - sym('_lr_start')}; pool {pool} B of {0x54000}; "
+                 f"NOINIT {noinit} B of {noinit_cap} (headroom {noinit_cap - noinit})")
     if bss > 96 * 1024:
         errors.append("RAM region overflow")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
         errors.append(f"pool headroom {0x54000 - pool} B < 8192 B")
+    if noinit < 0 or noinit > noinit_cap:
+        errors.append(f"NOINIT usage {noinit} B exceeds its {noinit_cap} B region")
+
+    core = (FW / "src" / "core.h").read_text(encoding="utf-8")
+    def core_count(name):
+        match = re.search(r"(?m)^#define\s+" + re.escape(name) + r"\s+(\d+)\b", core)
+        return int(match.group(1)) if match else 0
+
+    object_sizes = (
+        ("trk", "runtime track array", core_count("NTRK")),
+        ("eng_arena", "synth engine arena array", core_count("NPART")),
+        ("proj_slot", "NOINIT project slot cache", 4),
+        ("autosave_buf", "autosave project buffer", 1),
+        ("proj_tmp", "project import staging union", 1),
+        ("main_scratch", "shared main scratch", 1),
+        ("ins", "INSERT state array", core_count("NPART") + 4),
+    )
+    for name, label, count in object_sizes:
+        total = sym_size(name)
+        if total:
+            each = total // count if count and total % count == 0 else None
+            detail = f"{total} B total"
+            if each is not None:
+                detail += f", {each} B each × {count}"
+            notes.append(f"object {label}: {detail}")
+        else:
+            notes.append(f"object {label}: symbol size not found (see build/felucca.sym)")
     return errors, notes
 
 

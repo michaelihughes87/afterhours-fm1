@@ -373,3 +373,21 @@ The next coding change should be a diagnostic-only commit that:
 4. Adds tests for the explicit visible/internal mapping.
 
 Once those measurements and host tests exist, the first architectural implementation can be planned against real sizes rather than guesses.
+
+## 9. Critical NOINIT cache constraint (follow-up finding)
+
+The target linker script defines a separate `NOINIT` RAM region:
+
+- Origin: `0x01C7C000`.
+- Length: `0x3D50` = 15,696 bytes.
+- The four cached project objects are `proj_slot[4]`, explicitly placed in `.noinit`.
+- The existing format-6 project object is 3,816 bytes, so `proj_slot[4]` occupies 15,264 bytes by itself.
+- `panel` in `.noinit` is 32 bytes; `settings` in `.noinit` are 16 bytes. Those three objects account for at least 15,312 bytes, leaving at most 384 bytes for any other `.noinit` objects and alignment.
+
+A naïve five-track runtime project object would be 4,750 bytes (80-byte header plus five 934-byte tracks). Four such cached runtime objects would be 19,000 bytes: 3,304 bytes larger than the entire NOINIT region, before panel/settings or any other NOINIT state. **Therefore a five-track `project_t proj_slot[4]` cannot remain as four expanded runtime objects in NOINIT.**
+
+The compact format-7 calculation in this audit (3,813 bytes per serialized project) remains a promising *on-flash and NOINIT-cache* candidate, but it is only a design calculation. It has not been implemented or range-tested. If used, the likely design is to keep the four section caches in compact, versioned records and unpack one project into a single runtime staging buffer when loading / applying / saving. That staging buffer's placement and lifetime must be measured against `.bss`, `.pool`, stack and autosave use. Do not merely change `NTRK` and expand `proj_slot`.
+
+The baseline build summary did not report NOINIT usage. The diagnostic build update now adds `_noinit_start` / `_noinit_end` linker symbols, checks the exact NOINIT occupancy against the region capacity, saves the application symbol table and section table, and reports byte sizes for the track array, engine arenas, project slots, autosave buffer, import staging union, shared scratch and INSERT state when the linker symbol table exposes them.
+
+The new diagnostic artifacts are `build/felucca.sym` and `build/felucca.sections.txt`. They are for engineering inspection only; they do not change the firmware's audio or track behaviour.

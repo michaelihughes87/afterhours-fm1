@@ -2,7 +2,7 @@ name: AFTERHOURS firmware build and regression tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, afterhours-five-track]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -74,5 +74,7 @@ jobs:
             build/felucca.bin
             build/loader/ota.bin
             build/felucca.dis
+            build/felucca.sym
+            build/felucca.sections.txt
           if-no-files-found: error
           retention-days: 14
