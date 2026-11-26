@@ -1,0 +1,75 @@
+name: AFTERHOURS firmware build and regression tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    # The upstream SLOOP build guide supports native Linux x86-64 without Docker.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      JIELI_TOOLCHAIN: ${{ github.workspace }}/.jieli/toolchain
+      AC79_SDK: ${{ github.workspace }}/.ac79-sdk
+      SOAK_MIN: 2
+
+    steps:
+      - name: Check out AFTERHOURS
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl xz-utils valgrind
+          python -m pip install --upgrade pip Pillow
+
+      - name: Download JieLi Linux toolchain
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.jieli"
+          tools/get_toolchain.sh "$GITHUB_WORKSPACE/.jieli"
+
+      - name: Download pinned AC79 SDK
+        run: |
+          git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$AC79_SDK"
+          test -f "$AC79_SDK/cpu/wl82/tools/uboot.boot"
+
+      - name: Build FM-1 firmware package
+        run: ./build.sh
+
+      - name: Run host and regression tests
+        run: tests/run_tests.sh
+
+      - name: Upload firmware build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: afterhours-firmware-${{ github.sha }}
+          path: |
+            build/felucca.fwsc
+            build/felucca.bin
+            build/loader/ota.bin
+            build/felucca.dis
+          if-no-files-found: error
+          retention-days: 14
