@@ -10,14 +10,14 @@ The baseline is a recovery point, not the AFTERHOURS product. Do not install it 
 
 ## Agreed product
 
-Five visible tracks:
-1. DRUMS — one dedicated 16-lane drum machine.
-2. PERCUSSION — ordinary flexible synth part; any engine can be loaded; percussion presets are the default library.
-3. BASS — flexible synth part.
-4. AFTER POLY — flexible synth part.
-5. TEXTURE / SECOND SYNTH — flexible synth part.
+Five visible tracks, in this deliberate order:
+1. **DRUMS** — one dedicated 16-lane drum machine.
+2. **AFTER POLY** — flexible synth part; Prophet warmth + Juno movement.
+3. **ORGAN / KEYS** — flexible synth part; soulful organ, warm Rhodes / Wurlitzer-style keys.
+4. **MONO BASS** — flexible synth part; Minimoog weight + Pro-One articulation.
+5. **TEXTURE / PERC** — flexible synth part; granular / digital / atmospheric sounds and selected tuned / synthetic percussion.
 
-The instrument therefore has four synth parts and one drum part. Synth roles are defaults, not restrictions. Track 2 is not another drum-machine track.
+The instrument therefore has four synth parts and one drum part. All four synth parts can load any supported engine and ordinary preset. Roles are defaults and preset-library priorities, not track locks. T5 combines texture and percussion because the agreed instrument has five tracks; percussion is not a separate sixth part or a second drum machine.
 
 ## Technical constraints already identified
 
@@ -79,7 +79,7 @@ The instrument therefore has four synth parts and one drum part. Synth roles are
 5. Design project format and flash allocation; test old project imports and worst-case new projects in host tools.
 6. Implement four synth parts plus one drum part, including audio, sequencer, mixer, MIDI and dual-core behavior.
 7. Implement theme format compatibility and five-row UI.
-8. Build the sound library and AFTER POLY identity.
+8. Build and audition the sound library in the agreed order: DRUMS, AFTER POLY, ORGAN / KEYS, MONO BASS, then TEXTURE / PERC; assess Guru-600 P600 as an optional experiment.
 9. Implement original, sound-reactive AFTERHOURS graphics.
 10. Run full regression, CPU / memory stress and actual-device backup / recovery / install tests.
 

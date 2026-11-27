@@ -225,17 +225,19 @@ These are tonal references, not implementation requirements. Use existing proces
 
 ## 10. Five-track sonic identity
 
-The existing five-track architecture remains the agreed design. Track roles are default musical orientations and preset collections, not restrictions.
+The five-track order is deliberate and reflects the instrument's musical priorities. Track roles are default orientations and curated preset collections, not restrictions: every synth track can load any supported engine and ordinary preset.
 
-| Track | Role | Primary sound territories |
+| Track | Default role | Main sound territory |
 |---|---|---|
-| T1 | Dedicated drum machine | Machinedrum, Linn, Vermona, Jomox, DMX, Syncussion |
-| T2 | Flexible percussion synth | Syncussion, Simmons, ER-1, ARP, FM, modal and mallet percussion |
-| T3 | Flexible bass synth | Minimoog, Pro-One, MS-20, SH-101, DX / FM bass |
-| T4 | Main poly synth | Prophet-5, Juno, Oberheim, Jupiter, warm keys and pads |
-| T5 | Texture / second synth | PPG, D-50, Wavestation, EMS, CS-80, samples and granular textures |
+| T1 | Dedicated drum machine | Deep / punchy drums, analogue-style synthesis, hybrid kits, breaks, dub and industrial accents |
+| T2 | Main poly synthesiser | Prophet warmth, Juno movement, rich chords, warm brass-like tones and evolving pads |
+| T3 | Organ / keys | Soulful tonewheel organ, dub / house organ, Rhodes / Wurlitzer-style electric keys |
+| T4 | Mono bass | Minimoog weight, Pro-One articulation, sub, pulse / saw bass, glide and controlled drive |
+| T5 | Texture / percussion synth | Granular / sampled / digital atmospheres, controlled noise, resonant percussion and selected metallic / tuned hits |
 
-T2 remains a normal, fully flexible synth part. Every synth track must be able to load any supported engine.
+The sound-design priority follows that order: drums first; main poly second; organ / keys third; mono bass fourth; textures and selected percussion fifth. T5 combines texture and percussion to preserve the five-track target. Bells, glockenspiel and xylophone should be present as occasional useful colours, but are not a major engine-development priority.
+
+All four synth tracks remain fully flexible. The default role only guides initial presets and documentation; it never restricts engine selection.
 
 ## 11. Sound manipulation and performance
 

@@ -14,14 +14,14 @@
 
 ## Phase 1 — Lock the five-track product
 
-- [x] Confirm five visible tracks: DRUMS, PERCUSSION synth, BASS, AFTER POLY, TEXTURE / SECOND SYNTH.
+- [x] Confirm five visible tracks in the agreed order: DRUMS, AFTER POLY, ORGAN / KEYS, MONO BASS, TEXTURE / PERC.
 - [x] Confirm four flexible synth parts plus one dedicated drum-machine part.
-- [x] Confirm PERCUSSION is a role and preset collection, not a restricted engine.
-- [ ] Update all product, architecture, sound-design and preset documents consistently.
-- [ ] Define the visible track order separately from internal synth-part indices.
-- [ ] Define old-project migration behaviour and acceptance criteria.
+- [x] Confirm T5 combines texture and percussion presets; it is not a second drum machine or a percussion-only engine.
+- [ ] Keep product, architecture, sound-design, feasibility and preset documents consistent with this visible order.
+- [x] Define the proposed visible track order separately from internal synth-part indices: `[4, 0, 1, 2, 3]` for internal drum index 4 followed by synth indices 0–3.
+- [ ] Define and test old-project migration behaviour and acceptance criteria in firmware / host tests.
 
-**Exit condition:** one consistent product and architecture specification with no remaining six-track / two-drum-track assumptions.
+**Exit condition:** one consistent product and architecture specification with no remaining old role-order, six-track or two-drum-track assumptions.
 
 ## Phase 2 — Architecture and resource investigation
 
@@ -52,15 +52,16 @@
 
 ## Phase 4 — Musical identity and sound library
 
-- [ ] Extend the existing ANALOG engine into the AFTER POLY sound identity; avoid a duplicate oscillator engine unless necessary.
-- [ ] Create percussion-focused presets across several existing engines for T2 while preserving unrestricted engine selection.
-- [ ] Create a coherent bass preset bank for T3.
-- [ ] Create main poly presets for T4 and textures / secondary synth presets for T5.
-- [ ] Curate original / properly licensed drum kits for the dedicated drum machine.
-- [ ] Balance default levels, envelopes, tuning and performance ranges across all factory sounds.
+- [ ] Make the dedicated drum machine the first sound-quality priority: weighty kicks, punchy snares, usable hats, hybrid sampled / synthetic kits, breaks and distinctive industrial / dub options.
+- [ ] Develop AFTER POLY on T2 around Prophet warmth + Juno movement; assess the existing ANALOG engine before any new voice architecture.
+- [ ] Curate ORGAN / KEYS on T3: soulful DRAWBAR registrations, warm Rhodes / Wurlitzer-style keys and a small number of useful keyboard sounds.
+- [ ] Develop MONO BASS on T4 around Minimoog weight + Pro-One articulation, using ANALOG first and other engines only where they add a distinct sound.
+- [ ] Develop TEXTURE / PERC on T5: granular / digital / atmospheric sounds plus a small, useful set of tuned and synthetic percussion presets.
+- [ ] Investigate Guru-600's P600 engine as an optional poly-synth experiment; do not make it a dependency for the first sound library.
+- [ ] Balance default levels, envelopes, tuning, brightness and performance ranges across all factory sounds.
 - [ ] Create starter projects demonstrating trip-hop, post-punk, dub, broken-beat and experimental workflows.
 
-**Exit condition:** a useful, level-balanced instrument with compelling presets and no default clipping or abrupt level surprises.
+**Exit condition:** a useful, level-balanced instrument with compelling presets and no default clipping, harshness or abrupt level surprises.
 
 ## Phase 5 — AFTERHOURS interface and visual identity
 

@@ -1,7 +1,7 @@
 # AFTERHOURS — five-track source audit
 
-**Audit baseline:** `46e51ce433e9e73c8d6cac0e8eeebfce519feb2c`  
-**Development branch:** `afterhours-five-track`  
+**Audit baseline:** `46e51ce433e9e73c8d6cac0e8eeebfce519feb2c`
+**Development branch:** `afterhours-five-track`
 **Product decision:** five visible tracks — one dedicated drum machine plus four fully flexible synth parts.
 
 This is a source-level design audit. It identifies existing assumptions and proposes implementation strategies. It is not a firmware patch, a target memory measurement after modification, or a claim that the proposed packed project format has already passed tests.
@@ -15,12 +15,12 @@ This is a source-level design audit. It identifies existing assumptions and prop
 | Visible track | Role | Track type |
 |---|---|---|
 | 1 | DRUMS | Dedicated 16-lane drum machine |
-| 2 | PERCUSSION | Ordinary, fully flexible synth part; curated percussion presets |
-| 3 | BASS | Ordinary, fully flexible synth part |
-| 4 | AFTER POLY | Ordinary, fully flexible synth part |
-| 5 | TEXTURE / SECOND SYNTH | Ordinary, fully flexible synth part |
+| 2 | AFTER POLY | Ordinary, fully flexible synth part; Prophet warmth + Juno movement |
+| 3 | ORGAN / KEYS | Ordinary, fully flexible synth part; soulful organ and warm electric keys |
+| 4 | MONO BASS | Ordinary, fully flexible synth part; Minimoog weight + Pro-One articulation |
+| 5 | TEXTURE / PERC | Ordinary, fully flexible synth part; atmosphere, granular / digital sounds and selected percussion |
 
-T2 is not a second drum-machine track and is not restricted to a percussion-only engine. All four synth tracks must be able to use any existing or future synth engine.
+All four synth tracks must be able to use any existing or future synth engine. T5 is not a second drum-machine track or a percussion-only engine; it combines textures and selected percussion presets because the agreed instrument has five tracks.
 
 ### Recommended internal arrangement
 
@@ -28,10 +28,10 @@ Keep the four synth parts contiguous for the existing DSP architecture:
 
 ```text
 Internal trk[] indices:
-0 = synth part A (visible T2, percussion role)
-1 = synth part B (visible T3, bass role)
-2 = synth part C (visible T4, AFTER POLY role)
-3 = synth part D (visible T5, texture / second synth role)
+0 = synth part A (visible T2, AFTER POLY role)
+1 = synth part B (visible T3, ORGAN / KEYS role)
+2 = synth part C (visible T4, MONO BASS role)
+3 = synth part D (visible T5, TEXTURE / PERC role)
 4 = dedicated drum part (visible T1)
 
 Visible-to-internal mapping:
@@ -55,7 +55,7 @@ Existing projects store three synth tracks followed by the dedicated drum track.
 - Old synth track 2 -> new internal synth 1 / visible T3.
 - Old synth track 3 -> new internal synth 2 / visible T4.
 - Old drum track -> new internal drum 4 / visible T1.
-- New internal synth 3 / visible T5 starts empty with its chosen default sound.
+- New internal synth 3 / visible T5 starts empty with its chosen TEXTURE / PERC default sound.
 - If an old project selected the old drum track (index 3), migrate the selected index to new internal index 4. Existing synth selections retain indices 0–2.
 
 This preserves existing sounds and patterns while introducing the new layout.
@@ -349,7 +349,7 @@ Keep the current host CPU baseline separate from compiler-derived target-cost re
 
 - Four synth parts plus one drum-machine part initialise and select in the correct visible order.
 - Each synth can load every available engine and preset.
-- T2's percussion presets work, but T2 can load ordinary bass, pad, lead, sample and texture sounds.
+- T5's texture / percussion presets work, but T5 can load ordinary bass, pad, lead, sample and other supported synth sounds.
 - Drum sequencing and 16 lanes remain separate from synth sequencing.
 - Every track has independent patterns, level, pan, mute, solo, recording and supported processing.
 - Four synth MIDI channels and one drum channel work over USB and TRS.

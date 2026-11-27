@@ -19,14 +19,14 @@ Turn the FM-1 on and find a complete, playable five-track instrument: a dedicate
 | Track | Default role | Purpose |
 |---|---|---|
 | 1 | DRUMS | Dedicated conventional drum machine: kick, snare, hats, claps, toms and 16-lane kit sequencing |
-| 2 | PERCUSSION | A normal, fully flexible synth part intended for percussion design; can load any available synth engine and its ordinary presets, with a curated percussion-focused preset collection |
-| 3 | BASS | Sub, mono synth, acid / sequence bass, driven midrange bass |
-| 4 | AFTER POLY | Main Prophet-inspired analogue-style polysynth |
-| 5 | TEXTURE / SECOND SYNTH | Pads, chords, strings, FM, sample, noise, lead or atmosphere |
+| 2 | AFTER POLY | Main Prophet-warmth / Juno-movement polysynth |
+| 3 | ORGAN / KEYS | Soulful tonewheel organs, warm Rhodes / Wurlitzer-style electric keys and useful keyboard sounds |
+| 4 | MONO BASS | Minimoog-weight bass, Pro-One articulation, sub, pulse / saw sequences, glide and controlled drive |
+| 5 | TEXTURE / PERC | Granular, digital and atmospheric sounds, plus a compact curated selection of tuned / synthetic percussion |
 
-The four synth parts must remain genuinely flexible. PERCUSSION is a suggested musical role and starter preset collection, not a restricted percussion engine or a special track type. A user can load any existing or future synth engine on it. The same principle applies to the other synth roles: labels and default sounds guide the player without preventing reassignment.
+The four synth parts must remain genuinely flexible. Their labels describe the default musical role and starting preset collection, not restricted track types. Any supported engine and ordinary preset may be loaded on any of the four synth tracks. T5 combines textures and percussion because the agreed instrument has five tracks; percussion is not a separate sixth part.
 
-The dedicated DRUMS track remains the conventional multi-lane drum instrument. It is not replaced by a synth, and the percussion-synth track does not take away or weaken the dedicated drum machine.
+The visible order is deliberate: drums first, then the main poly, organ / keys, mono bass and finally textures / percussion. It reflects the way the instrument should be approached musically, while leaving every synth part independently assignable.
 
 ## Drums
 
@@ -34,11 +34,19 @@ The dedicated drum-machine track should offer a broad palette rather than being 
 
 Retain the existing 16-lane drum workflow as the starting point. Improve kit browsing, lane editing, level / velocity, tune, decay, choke behaviour and access to track processing where resources permit. Use properly licensed, original or CC0 sample material, with attribution where required.
 
-## Percussion synth part
+## Organ / keys
 
-Track 2 is a full synth part, not a second drum-machine track. It should be immediately useful for tuned percussion, mallets, bells, metal, struck objects, plucks, noisy transients, tom-like synths, FM hits, resonant textures and unusual rhythmic voices.
+Organ and warm keyboard sounds are a core musical role, not incidental extras. Prioritise soulful tonewheel registrations, rounded B3-style sounds, dub / house organ stabs, warm Rhodes-like tine sounds and useful Wurlitzer-style bite. Keep the factory selection focused and musical; a few excellent registrations and electric-key sounds are more valuable than a large collection of thin imitations. DIGITAL, DRAWBAR / WHEEL and FM6 provide existing starting points to audition before new DSP is considered.
 
-Build a dedicated percussion-focused preset collection across the existing engines. Candidate engines include PHYS, FM6, DRAWBAR, SAMPLE, NOISE, DIGITAL and ANALOG, chosen by sound suitability. Presets should have sensible envelopes, useful pitch ranges and controlled levels. The player must still be able to browse all engines and load any normal synth sound on this track.
+## Mono bass
+
+The bass role should combine Minimoog-like weight with Pro-One articulation. Cover stable sub, rounded two-oscillator bass, tight pulse / saw sequences, glide, resonant movement and controlled saturation. A clean sound should be able to become more aggressive through accessible filter, drive and modulation controls without losing its fundamental. ANALOG is the first implementation route; TRIO and FM6 are contrasting options where they add a genuinely different character.
+
+## Texture and percussion synth part
+
+Track 5 is a normal, fully flexible synth part. Its default sound library combines granular / sampled movement, dark digital atmospheres, controlled noise and a small set of useful tuned or synthetic percussion sounds: resonant pitch sweeps, metallic FM hits, tom-like tones and a few mallet / bell colours. Chimes, glockenspiel and xylophone are supporting colours rather than a major development focus.
+
+T5 is not a percussion-only engine or a second drum machine. The player can select any supported engine and load any ordinary sound on it. Candidate engines include GRAIN, SAMPLE, PHASE, FM6, PHYS, NOISE, DIGITAL and ANALOG, selected by sound suitability. Presets should have musical envelopes, controlled levels and meaningful performance ranges.
 
 ## Mixing
 
@@ -52,7 +60,7 @@ Make mixing immediate and tactile:
 
 ## Polyphonic synthesis
 
-A dedicated **AFTER POLY** voice / sound identity should take inspiration from classic analogue polysynths such as the Prophet '08 without claiming to reproduce the original instrument.
+A dedicated **AFTER POLY** voice / sound identity should combine Prophet-family warmth with Juno-style movement: full, rounded chords, subtle detuning, useful pulse-width movement, gentle chorus and expressive filter shaping. Guru-600's Prophet-600 engine is a separate technical candidate, not a claim that the target is a Prophet-600 or Prophet-5 clone.
 
 Target voice controls:
 - Two band-limited oscillators with saw, pulse / PWM and triangle options.

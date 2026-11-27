@@ -6,13 +6,13 @@ The agreed product is **five visible tracks**: one dedicated drum-machine track 
 
 | Visible track | Role | Implementation |
 |---|---|---|
-| T1 | DRUMS | Existing dedicated 16-lane drum machine |
-| T2 | PERCUSSION | Ordinary synth part; any engine may be loaded; percussion presets are a curated starting point |
-| T3 | BASS | Flexible synth part |
-| T4 | AFTER POLY | Flexible synth part; extend the existing ANALOG engine first |
-| T5 | TEXTURE / SECOND SYNTH | Flexible synth part for pads, FM, samples, noise, leads and atmosphere |
+| T1 | DRUMS | Dedicated 16-lane drum machine; the first and central rhythm part |
+| T2 | AFTER POLY | Flexible synth part; Prophet warmth + Juno movement is the main polyphonic direction |
+| T3 | ORGAN / KEYS | Flexible synth part; soulful organs, warm Rhodes / Wurlitzer-style keys and related keyboard sounds |
+| T4 | MONO BASS | Flexible synth part; Minimoog weight + Pro-One articulation, from clean sub to controlled drive |
+| T5 | TEXTURE / PERC | Flexible synth part; granular / digital / atmospheric textures plus a curated selection of tuned and synthetic percussion |
 
-Roles are defaults, not locks. In particular, T2 must not become a second special drum instrument or a percussion-only engine.
+All four synth parts remain fully flexible: any supported engine and ordinary preset may be loaded on any synth track. These names describe the default role and curated starting sounds, not track-type restrictions. T5 combines texture and percussion because the agreed instrument has five tracks; there is no separate sixth percussion track.
 
 ## Baseline source facts
 
@@ -41,7 +41,7 @@ The selected track may remain an internal track index if that is least disruptiv
 ## Audio parts, voices and engine state
 
 - Start with the existing global budget of eight simultaneously sounding synth voices shared fairly across all four synth parts. A fourth synth part must not silently multiply the budget to 32 voices.
-- Keep engine-specific polyphony limits (for example, the existing lower caps of GRAIN and PHYS) and make percussion presets responsive and controlled. Do not hard-lock T2 to one engine or one fixed voice count.
+- Keep engine-specific polyphony limits (for example, the existing lower caps of GRAIN and PHYS). T5's percussion-focused presets should be responsive and controlled, but T5 must remain a fully flexible synth part.
 - Audit voice allocation, voice stealing, held notes, mono / legato / unison, strum, note-off, pending engine changes and preset fades for all four parts.
 - Add the fourth `eng_arena` slot only after measuring `sizeof(eng_arena_t)` and reviewing the linker map. The current pool is 333,900 / 344,064 bytes, with an 8,192-byte reserve; its headroom is too small to assume another arena fits.
 - `.data + .bss` currently uses 59,340 / 98,304 bytes, leaving 38,964 bytes before other changes. Assess moving long-lived engine arenas from `.pool` to `.bss` or another explicit memory region. Verify the exact map and stack/interrupt constraints; do not move memory by guesswork.
@@ -82,7 +82,7 @@ This is a release-blocking design task.
 
 1. Four synth parts plus the dedicated drum machine initialise with the correct defaults and visible ordering.
 2. Each synth can load every supported engine and change presets independently.
-3. The percussion role plays tuned percussion presets but can also load a normal bass, pad, sample or lead sound.
+3. T5's texture / percussion role can load tuned or synthetic percussion presets, but can equally load any ordinary bass, pad, sample, lead or other supported synth sound.
 4. Drum sequencing, 16 lanes, kit changes and drum sound editing remain independent of synth sequencing.
 5. All five tracks have independent level, pan, mute, solo, recording, patterns and supported effects.
 6. Four synth MIDI channels and the separate drum channel route correctly over USB and TRS.
@@ -95,7 +95,7 @@ This is a release-blocking design task.
 
 ## Non-goals for the first architecture milestone
 
-- No second dedicated drum machine; T2 is a flexible synth part.
+- No second dedicated drum machine; T5 is a flexible synth part with a texture / percussion preset focus.
 - No promise of eight voices per synth part; the initial synth voice budget stays shared.
 - No new expensive DSP or full-screen framebuffer before profiling.
 - No destructive project or settings migration.

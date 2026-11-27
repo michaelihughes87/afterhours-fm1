@@ -18,6 +18,15 @@ The current firmware already contains a broad set of synthesis engines and sound
 
 The first sound-design work should therefore be **audition, curation, level balancing and refinement of existing engines and presets**, not adding engines indiscriminately.
 
+The agreed visible track / sound priority is:
+1. T1 DRUMS — best kits, weight, punch, breaks and hybrid analogue / sampled / synthetic character.
+2. T2 AFTER POLY — Prophet warmth + Juno movement.
+3. T3 ORGAN / KEYS — soulful organ and warm electric keys.
+4. T4 MONO BASS — Minimoog weight + Pro-One articulation.
+5. T5 TEXTURE / PERC — granular / digital / atmospheric sounds and a small, useful percussion selection.
+
+All four synth parts remain unrestricted. This order guides the default sound library and the audition programme; it does not restrict engine selection. Bells and mallets should be represented, but they are supporting sounds rather than a major development stream.
+
 The most important candidate for new engine work is Guru-600's Prophet-600 engine. It is technically interesting and potentially complementary, but it is not a drop-in addition and is not the same instrument architecture as a Prophet-5. It needs a controlled porting and benchmarking investigation before inclusion.
 
 The principal implementation risks remain:
