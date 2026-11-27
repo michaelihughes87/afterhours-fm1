@@ -45,9 +45,12 @@
 _Static_assert(G_DRDLY == PROJ_NG && G_TXSRC == PROJ_NG + 5u,
                "the globals a project holds, then G_DRDLY (then 2.6's GLO > MIDI: settings of the FM-1)");
 _Static_assert(G_FXFADE == G_CLKOUT + 1u && G_COUNT == G_FXFADE + 1u, "G_FXFADE (2.7.2) is the last global, a setting of the FM-1");
-#define PROJ_NC6 ((uint32_t)P_ITYPE)           /* format 6: the parameters kept in 16 bits, P_LEVEL .. P_VLEAD (as 5), */
-#define PROJ_NX6 ((uint32_t)(P_E0 - P_ITYPE))  /* the 2.6 ones in a byte (0..127), then P_E0 .. P_E7 */
-_Static_assert(PROJ_NC6 == PROJ_NP_V5 - 8u && PROJ_NX6 == 10u, "format 6: format 5's parameters, then ten bytes");
+#define PROJ_NP_V6 71u                         /* FUN6's historical P_COUNT; P_E0 was 63 */
+#define PROJ_NC6 (PROJ_NP_V5 - 8u)           /* FUN6: 53 common parameters in 16 bits */
+#define PROJ_NX6 10u                           /* FUN6: ten 2.6 parameters in bytes */
+_Static_assert(PROJ_NC6 == 53u && PROJ_NX6 == 10u && P_ITYPE == PROJ_NC6 &&
+               P_E0 == PROJ_NC6 + PROJ_NX6 && P_COUNT == PROJ_NP_V6,
+               "FUN6 parameter offsets are frozen; add a new codec before extending P_COUNT");
 typedef struct {                               /* one track; the drum track ignores engine / preset */
     int16_t p[PROJ_NC6];                       /* P_LEVEL .. P_VLEAD (pt_get, pt_set) */
     int16_t e[8];                              /* P_E0 .. P_E7 */
@@ -152,7 +155,8 @@ typedef struct {                               /* format 1 (until 0.5 beta), rea
 } project_v1_t;
 _Static_assert(sizeof(project_v2_t) == 2552u && sizeof(project_v1_t) == 688u && sizeof(project_v3_t) == 2584u &&
                sizeof(project_v4_t) == 3112u && sizeof(project_v5_t) == 3840u, "formats 1 / 2 / 3 / 4 / 5 as they were stored");
-_Static_assert(sizeof(project_t) <= 3840u, "format 6 fits one flash object (storage.c ST_PAYLOAD_MAX)");
+_Static_assert(sizeof(project_t) == 3816u && sizeof(project_t) <= 3840u,
+               "FUN6 in-memory/cache layout is frozen at 3816 bytes; extend through a new codec");
 project_t proj_slot[4] __attribute__((section(".noinit")));
 
 UI_SMALL static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */

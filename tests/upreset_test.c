@@ -58,6 +58,8 @@ int main(void)
     int bad = 0, len, ok;
     int16_t v[P_COUNT], def[P_COUNT];
     memset(nor, 0xFF, sizeof nor);
+    bad += check("UP_V1 parameter and record layout frozen",
+                 UP_NP_V1 == 71u && UP_PMAX == 72u && UP_VER == 1u && sizeof(up_rec_t) == 192u);
 
     n = put_frame(a, 5, 2, "Bass One", -40);
     bad += check("UP_PUT frame < 640 bytes", 5u + n + 1u < 640u);

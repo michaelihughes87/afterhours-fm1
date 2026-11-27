@@ -24,6 +24,7 @@
 #define UP_PMAX 72u                              /* room for P_COUNT to grow */
 #define UP_USED 0xA5u
 #define UP_VER 1u
+#define UP_NP_V1 71u                          /* original SLOOP user-preset parameter count */
 #define UP_BANK_MAGIC 0x31425055u                /* "UPB1" */
 typedef struct {
     uint8_t used, ver, engine, np;               /* UP_USED, UP_VER, engine, P_COUNT when stored */
@@ -37,7 +38,8 @@ typedef struct {
     up_rec_t r[UP_PER_BANK];
 } up_bank_t;
 _Static_assert(sizeof(up_rec_t) == 192, "user preset record layout");
-_Static_assert(P_COUNT <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");
+_Static_assert(P_COUNT == UP_NP_V1 && UP_PMAX == 72u && P_COUNT < 128,
+               "UP_V1 layout is frozen; extend the user-preset codec before adding parameters");
 #ifdef UP_HOST
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK];
 UI_SMALL static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }

@@ -132,6 +132,10 @@ int main(void)
                  PROJ_OLD_NPART == 3u && PROJ_OLD_NTRK == 4u && PROJ_OLD_TRK_DRUM == 3u &&
                  PROJ_TEST_OLD_NPART == PROJ_OLD_NPART);
 
+    bad += check("FUN6 parameter partition frozen (53 common + 10 byte + 8 engine values)",
+                 PROJ_NP_V6 == 71u && PROJ_NC6 == 53u && PROJ_NX6 == 10u &&
+                 P_ITYPE == 53u && P_E0 == 63u && P_COUNT == 71u);
+
     bad += check("layout: P_CHORD, P_TFLT, P_STRUM, P_VLEAD, then the ten of 2.6 just before P_E0 (63), P_COUNT = format 5's + 10",
                  P_CHORD + 1 == P_TFLT && P_TFLT + 1 == P_STRUM && P_STRUM + 1 == P_VLEAD && P_VLEAD + 1 == P_ITYPE &&
                  P_LPOL + 1 == P_E0 && P_E0 == 63 && P_COUNT == PROJ_NP_V5 + 10u && PROJ_NP_V5 == PROJ_NP_V4 + 3u &&
