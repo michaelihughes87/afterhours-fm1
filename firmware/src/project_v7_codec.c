@@ -22,6 +22,7 @@
 #define PROJ7_COMMON 63u
 #define PROJ7_ENGINE_PARAMS 8u
 #define PROJ7_SYNTH_TRACKS 4u
+#define PROJ7_TRACKS (PROJ7_SYNTH_TRACKS + 1u)
 #define PROJ7_STEP_BYTES 8u
 #define PROJ7_LOCK_BYTES 3u
 
@@ -52,6 +53,29 @@ typedef struct {
     uint8_t rsv_tail[2];
     uint32_t sum;
 } project_v7_t;
+
+typedef struct {
+    int16_t p[P_COUNT];
+    uint8_t engine, preset;
+    step_t step[NSTEP];
+    uint8_t mf[NSTEP];
+    plock_t lock[NLOCK];
+} proj7_synth_data_t;
+
+typedef struct {
+    int16_t p[P_COUNT];                /* P_E1..P_E7 are represented by tune_decay below */
+    int16_t tune_decay[7];
+    dstep_t step[NSTEP];
+    uint8_t mf[NSTEP];
+    plock_t lock[NLOCK];
+} proj7_drum_data_t;
+
+typedef struct {
+    int16_t g[PROJ_NG];
+    uint8_t sel, drdly, rsv[2];         /* includes the legacy TEXTURE metadata bytes */
+    proj7_synth_data_t synth[PROJ7_SYNTH_TRACKS];
+    proj7_drum_data_t drum;
+} project_v7_data_t;
 
 _Static_assert(P_E0 == PROJ7_COMMON && P_COUNT == 71u, "FUN7 prototype freezes the current 71-parameter base");
 _Static_assert(PROJ_NG == 32u && NSTEP == 64u && NLOCK == 24u, "FUN7 prototype dimensions");
@@ -96,18 +120,29 @@ static void proj7_common_get(int16_t p[P_COUNT], const uint8_t in[PROJ7_COMMON])
         p[i] = proj7_byte_get(in[i], &TP[i]);
 }
 
+static int proj7_step_valid(const step_t *s)
+{
+    uint32_t i;
+    if (!s || s->n > 4u || s->time > ST_REST || s->vel > 127u)
+        return 0;
+    for (i = 0; i < 4u; i++)
+        if (s->note[i] > 127u)
+            return 0;
+    return 1;
+}
+
 static void proj7_step_put(uint8_t out[PROJ7_STEP_BYTES], const step_t *s)
 {
     uint64_t bits = 0;
-    uint32_t i, n = s->n > 4u ? 4u : s->n;
-    uint32_t time = s->time > ST_REST ? ST_REST : s->time;
+    uint32_t i, n = s->n;
+    uint32_t time = s->time;
 
     for (i = 0; i < 4u; i++)
-        bits |= (uint64_t)(s->note[i] & 0x7Fu) << (7u * i);
+        bits |= (uint64_t)s->note[i] << (7u * i);
     bits |= (uint64_t)(n & 7u) << 28;
     bits |= (uint64_t)(time & 3u) << 31;
     bits |= (uint64_t)s->flags << 33;
-    bits |= (uint64_t)(s->vel & 0x7Fu) << 41;
+    bits |= (uint64_t)s->vel << 41;
     bits |= (uint64_t)s->lvl << 48;
     bits |= (uint64_t)s->rat << 56;
     for (i = 0; i < PROJ7_STEP_BYTES; i++)
@@ -174,6 +209,9 @@ int proj7_synth_pack(proj7_synth_t *d, const int16_t p[P_COUNT], uint8_t engine,
     for (i = 0; i < PROJ7_ENGINE_PARAMS; i++)
         if (!proj7_byte_put(&d->e[i], p[P_E0 + i], &ENGINES[engine]->edit[i]))
             return 0;
+    for (i = 0; i < NSTEP; i++)
+        if (!proj7_step_valid(&steps[i]))
+            return 0;
     d->engine = engine;
     d->preset = preset;
     for (i = 0; i < NSTEP; i++) {
@@ -200,6 +238,8 @@ int proj7_synth_unpack(const proj7_synth_t *s, int16_t p[P_COUNT], uint8_t *engi
     *preset = s->preset;
     for (i = 0; i < NSTEP; i++) {
         proj7_step_get(&steps[i], &s->step[i * PROJ7_STEP_BYTES]);
+        if (!proj7_step_valid(&steps[i]))
+            return 0;
         mf[i] = s->mf[i];
     }
     for (i = 0; i < NLOCK; i++)
@@ -278,4 +318,44 @@ int proj7_valid(const project_v7_t *p)
     return p && p->magic == PROJ7_MAGIC && p->size == sizeof *p &&
            p->rsv_tail[0] == 0u && p->rsv_tail[1] == 0u &&
            p->sum == proj7_hash(p, (uint32_t)offsetof(project_v7_t, sum));
+}
+
+int proj7_project_pack(project_v7_t *out, const project_v7_data_t *in)
+{
+    uint32_t i;
+    if (!out || !in || in->sel >= PROJ7_TRACKS)
+        return 0;
+    proj7_begin(out, in->g, in->sel, in->drdly);
+    memcpy(out->rsv, in->rsv, sizeof out->rsv);
+    for (i = 0; i < PROJ7_SYNTH_TRACKS; i++)
+        if (!proj7_synth_pack(&out->synth[i], in->synth[i].p, in->synth[i].engine,
+                              in->synth[i].preset, in->synth[i].step,
+                              in->synth[i].mf, in->synth[i].lock))
+            return 0;
+    if (!proj7_drum_pack(&out->drum, in->drum.p, in->drum.tune_decay,
+                         in->drum.step, in->drum.mf, in->drum.lock))
+        return 0;
+    proj7_seal(out);
+    return proj7_valid(out);
+}
+
+int proj7_project_unpack(const project_v7_t *in, project_v7_data_t *out)
+{
+    uint32_t i;
+    if (!in || !out || !proj7_valid(in) || in->sel >= PROJ7_TRACKS)
+        return 0;
+    memset(out, 0, sizeof *out);
+    memcpy(out->g, in->g, sizeof out->g);
+    out->sel = in->sel;
+    out->drdly = in->drdly;
+    memcpy(out->rsv, in->rsv, sizeof out->rsv);
+    for (i = 0; i < PROJ7_SYNTH_TRACKS; i++)
+        if (!proj7_synth_unpack(&in->synth[i], out->synth[i].p,
+                                &out->synth[i].engine, &out->synth[i].preset,
+                                out->synth[i].step, out->synth[i].mf, out->synth[i].lock))
+            return 0;
+    if (!proj7_drum_unpack(&in->drum, out->drum.p, out->drum.tune_decay,
+                           out->drum.step, out->drum.mf, out->drum.lock))
+        return 0;
+    return 1;
 }

@@ -30,6 +30,8 @@ static int check(const char *what, int ok)
 static int project_v7_codec_test(void)
 {
     static project_v7_t image;
+    static project_v7_data_t data, restored;
+    static step_t invalid_steps[NSTEP];
     static proj7_synth_t syn;
     static proj7_drum_t drum;
     static int16_t p[P_COUNT], back[P_COUNT], globals[PROJ_NG], tw[7], tw_back[7];
@@ -114,16 +116,91 @@ static int project_v7_codec_test(void)
           !memcmp(locks, lock_back, sizeof locks);
     bad += check("FUN7 drum codec: 16-lane steps, tune/decay words, micro/fill and locks round-trip", ok);
 
+    /* A malformed step must fail instead of silently losing high bits. */
+    memcpy(invalid_steps, steps, sizeof invalid_steps);
+    invalid_steps[0].note[0] = 128u;
+    for (i = 0; i < PROJ7_ENGINE_PARAMS; i++)
+        p[P_E0 + i] = ENGINES[0]->edit[i].def;
+    ok = !proj7_synth_pack(&syn, p, 0u, 0u, invalid_steps, mf, locks);
+    bad += check("FUN7 synth codec rejects notes outside the stored 7-bit range", ok);
+
+    memset(&data, 0, sizeof data);
     for (i = 0; i < PROJ_NG; i++)
-        globals[i] = (int16_t)((int32_t)i * 3 - 20);
-    proj7_begin(&image, globals, 3u, 17u);
-    memset(&image.synth[0], 0, sizeof image.synth[0]);
-    memset(&image.drum, 0, sizeof image.drum);
-    proj7_seal(&image);
-    ok = proj7_valid(&image) && sizeof image == 3820u;
+        data.g[i] = (int16_t)((int32_t)i * 3 - 20);
+    data.sel = PROJ7_TRACKS - 1u;
+    data.drdly = 17u;
+    data.rsv[0] = 0xE5u;             /* current project TEXTURE flags/source */
+    data.rsv[1] = 7u;                /* current project TEXTURE rate */
+    for (e = 0; e < PROJ7_SYNTH_TRACKS; e++) {
+        uint32_t eng = e % NENGINES;
+        data.synth[e].engine = (uint8_t)eng;
+        data.synth[e].preset = (uint8_t)(0xF0u + e);
+        for (i = 0; i < PROJ7_COMMON; i++)
+            data.synth[e].p[i] = TP[i].def;
+        for (i = 0; i < PROJ7_ENGINE_PARAMS; i++)
+            data.synth[e].p[P_E0 + i] = ENGINES[eng]->edit[i].def;
+        for (i = 0; i < NSTEP; i++) {
+            step_t *s = &data.synth[e].step[i];
+            memset(s, 0, sizeof *s);
+            for (j = 0; j < 4u; j++)
+                s->note[j] = (uint8_t)((36u + e * 7u + i + j * 3u) & 127u);
+            s->n = (uint8_t)(i % 5u);
+            s->time = (uint8_t)(i % 3u);
+            s->flags = (uint8_t)((i & 1u) ? SF_LEG : 0u);
+            s->vel = (uint8_t)(1u + (i * 7u) % 127u);
+            s->lvl = (uint8_t)(i * 13u);
+            s->rat = (uint8_t)(i * 29u);
+            data.synth[e].mf[i] = (uint8_t)(((i * 7u) & 63u) | ((i % 3u) << 6));
+        }
+        for (i = 0; i < NLOCK; i++) {
+            data.synth[e].lock[i].step = LOCK_FREE;
+            data.synth[e].lock[i].param = 0u;
+            data.synth[e].lock[i].val = 0;
+        }
+        data.synth[e].lock[0].step = (uint8_t)e;
+        data.synth[e].lock[0].param = P_LEVEL;
+        data.synth[e].lock[0].val = TP[P_LEVEL].def;
+    }
+    for (i = 0; i < PROJ7_COMMON; i++)
+        data.drum.p[i] = TP[i].def;
+    data.drum.p[P_E0] = DRUM_KIT_DESC.def;
+    for (i = 0; i < 7u; i++)
+        data.drum.tune_decay[i] = (int16_t)(0xBEEFu - i * 0x1234u);
+    for (i = 0; i < NSTEP; i++) {
+        uint8_t *b = (uint8_t *)&data.drum.step[i];
+        for (j = 0; j < sizeof data.drum.step[i]; j++)
+            b[j] = (uint8_t)(i * 29u + j * 41u);
+        data.drum.mf[i] = (uint8_t)(((i * 11u) & 63u) | ((i % 3u) << 6));
+    }
+    for (i = 0; i < NLOCK; i++) {
+        data.drum.lock[i].step = LOCK_FREE;
+        data.drum.lock[i].param = 0u;
+        data.drum.lock[i].val = 0;
+    }
+    data.drum.lock[0].step = 63u;
+    data.drum.lock[0].param = P_E0;
+    data.drum.lock[0].val = DRUM_KIT_DESC.max;
+
+    ok = proj7_project_pack(&image, &data) && proj7_project_unpack(&image, &restored);
+    ok &= sizeof image == 3820u && !memcmp(data.g, restored.g, sizeof data.g) &&
+          data.sel == restored.sel && data.drdly == restored.drdly &&
+          !memcmp(data.rsv, restored.rsv, sizeof data.rsv);
+    for (e = 0; e < PROJ7_SYNTH_TRACKS; e++)
+        ok &= !memcmp(data.synth[e].p, restored.synth[e].p, sizeof data.synth[e].p) &&
+              data.synth[e].engine == restored.synth[e].engine &&
+              data.synth[e].preset == restored.synth[e].preset &&
+              !memcmp(data.synth[e].step, restored.synth[e].step, sizeof data.synth[e].step) &&
+              !memcmp(data.synth[e].mf, restored.synth[e].mf, sizeof data.synth[e].mf) &&
+              !memcmp(data.synth[e].lock, restored.synth[e].lock, sizeof data.synth[e].lock);
+    ok &= !memcmp(data.drum.p, restored.drum.p, PROJ7_COMMON * sizeof data.drum.p[0]) &&
+          data.drum.p[P_E0] == restored.drum.p[P_E0] &&
+          !memcmp(data.drum.tune_decay, restored.drum.tune_decay, sizeof data.drum.tune_decay) &&
+          !memcmp(data.drum.step, restored.drum.step, sizeof data.drum.step) &&
+          !memcmp(data.drum.mf, restored.drum.mf, sizeof data.drum.mf) &&
+          !memcmp(data.drum.lock, restored.drum.lock, sizeof data.drum.lock);
+    bad += check("FUN7 full project round trip: 4 synths, drums, globals, TEXTURE metadata, lane tune/decay", ok);
     image.synth[0].step[0] ^= 1u;
-    ok &= !proj7_valid(&image);
-    bad += check("FUN7 project envelope: 3820-byte layout, globals, selection and checksum rejection", ok);
+    bad += check("FUN7 project checksum rejects modified track data", !proj7_valid(&image));
 
     return bad;
 }
