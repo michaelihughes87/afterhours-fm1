@@ -45,6 +45,7 @@
 _Static_assert(G_DRDLY == PROJ_NG && G_TXSRC == PROJ_NG + 5u,
                "the globals a project holds, then G_DRDLY (then 2.6's GLO > MIDI: settings of the FM-1)");
 _Static_assert(G_FXFADE == G_CLKOUT + 1u && G_COUNT == G_FXFADE + 1u, "G_FXFADE (2.7.2) is the last global, a setting of the FM-1");
+#include "project_v7_codec.c"  /* FUN7 prototype: tested separately; legacy FUN6 remains active */
 #define PROJ_NP_V6 71u                         /* FUN6's historical P_COUNT; P_E0 was 63 */
 #define PROJ_NC6 (PROJ_NP_V5 - 8u)           /* FUN6: 53 common parameters in 16 bits */
 #define PROJ_NX6 10u                           /* FUN6: ten 2.6 parameters in bytes */

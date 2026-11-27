@@ -27,6 +27,107 @@ static int check(const char *what, int ok)
     return ok ? 0 : 1;
 }
 
+static int project_v7_codec_test(void)
+{
+    static project_v7_t image;
+    static proj7_synth_t syn;
+    static proj7_drum_t drum;
+    static int16_t p[P_COUNT], back[P_COUNT], globals[PROJ_NG], tw[7], tw_back[7];
+    static step_t steps[NSTEP], step_back[NSTEP];
+    static dstep_t dsteps[NSTEP], dstep_back[NSTEP];
+    static uint8_t mf[NSTEP], mf_back[NSTEP], engine, preset;
+    static plock_t locks[NLOCK], lock_back[NLOCK];
+    uint32_t e, i, j;
+    int bad = 0, ok;
+
+    /* Every installed engine's EDIT ranges must fit the codec's biased byte. */
+    ok = 1;
+    for (e = 0; e < NENGINES; e++)
+        for (i = 0; i < 8u; i++)
+            ok &= ENGINES[e]->edit[i].min >= -64 && ENGINES[e]->edit[i].max <= 127;
+    for (i = 0; i < PROJ7_COMMON; i++)
+        ok &= TP[i].min >= -64 && TP[i].max <= 127;
+    bad += check("FUN7 byte parameters: all common and current engine EDIT ranges fit -64..127", ok);
+
+    for (e = 0; e < NENGINES; e++) {
+        for (i = 0; i < PROJ7_COMMON; i++)
+            p[i] = (int16_t)((i & 1u) ? TP[i].min : TP[i].max);
+        for (i = 0; i < 8u; i++) {
+            const param_desc_t *d = &ENGINES[e]->edit[i];
+            p[P_E0 + i] = (int16_t)((i & 1u) ? d->min : d->max);
+        }
+        for (i = 0; i < NSTEP; i++) {
+            memset(&steps[i], 0, sizeof steps[i]);
+            for (j = 0; j < 4u; j++)
+                steps[i].note[j] = (uint8_t)((i * 11u + j * 27u) & 127u);
+            steps[i].n = (uint8_t)(i % 5u);
+            steps[i].time = (uint8_t)(i % 3u);
+            steps[i].flags = (uint8_t)(i * 37u);
+            steps[i].vel = (uint8_t)((i * 19u) & 127u);
+            steps[i].lvl = (uint8_t)(i * 53u);
+            steps[i].rat = (uint8_t)(i * 71u);
+            mf[i] = (uint8_t)(i * 17u);
+        }
+        for (i = 0; i < NLOCK; i++) {
+            locks[i].step = LOCK_FREE;
+            locks[i].param = 0;
+            locks[i].val = 0;
+        }
+        locks[0].step = 0;  locks[0].param = P_LEVEL; locks[0].val = TP[P_LEVEL].min;
+        locks[1].step = 63; locks[1].param = P_TFLT;  locks[1].val = TP[P_TFLT].min;
+        locks[2].step = 31; locks[2].param = P_E7;    locks[2].val = ENGINES[e]->edit[7].min;
+        ok = proj7_synth_pack(&syn, p, (uint8_t)e, 0xFFu, steps, mf, locks) &&
+             proj7_synth_unpack(&syn, back, &engine, &preset, step_back, mf_back, lock_back);
+        ok &= engine == e && preset == 0xFFu;
+        for (i = 0; i < P_COUNT; i++)
+            ok &= p[i] == back[i];
+        ok &= !memcmp(steps, step_back, sizeof steps) && !memcmp(mf, mf_back, sizeof mf) &&
+              !memcmp(locks, lock_back, sizeof locks);
+        if (!ok) break;
+    }
+    bad += check("FUN7 synth codec: every engine, parameter min/max, 64 packed steps and 24 locks round-trip", ok);
+
+    for (i = 0; i < PROJ7_COMMON; i++)
+        p[i] = TP[i].def;
+    p[P_E0] = DRUM_KIT_DESC.def;
+    for (i = 0; i < 7u; i++)
+        tw[i] = (int16_t)(0xBEEFu - i * 0x1234u);
+    for (i = 0; i < NSTEP; i++) {
+        uint8_t *b = (uint8_t *)&dsteps[i];
+        for (j = 0; j < sizeof dsteps[i]; j++)
+            b[j] = (uint8_t)(i * 29u + j * 41u);
+        mf[i] = (uint8_t)(i * 23u);
+    }
+    for (i = 0; i < NLOCK; i++) {
+        locks[i].step = LOCK_FREE;
+        locks[i].param = 0;
+        locks[i].val = 0;
+    }
+    locks[0].step = 63; locks[0].param = P_E0; locks[0].val = DRUM_KIT_DESC.max;
+    locks[1].step = 1;  locks[1].param = P_LEVEL; locks[1].val = TP[P_LEVEL].max;
+    ok = proj7_drum_pack(&drum, p, tw, dsteps, mf, locks) &&
+         proj7_drum_unpack(&drum, back, tw_back, dstep_back, mf_back, lock_back);
+    for (i = 0; i < PROJ7_COMMON; i++)
+        ok &= back[i] == p[i];
+    ok &= back[P_E0] == p[P_E0] && !memcmp(tw, tw_back, sizeof tw) &&
+          !memcmp(dsteps, dstep_back, sizeof dsteps) && !memcmp(mf, mf_back, sizeof mf) &&
+          !memcmp(locks, lock_back, sizeof locks);
+    bad += check("FUN7 drum codec: 16-lane steps, tune/decay words, micro/fill and locks round-trip", ok);
+
+    for (i = 0; i < PROJ_NG; i++)
+        globals[i] = (int16_t)((int32_t)i * 3 - 20);
+    proj7_begin(&image, globals, 3u, 17u);
+    memset(&image.synth[0], 0, sizeof image.synth[0]);
+    memset(&image.drum, 0, sizeof image.drum);
+    proj7_seal(&image);
+    ok = proj7_valid(&image) && sizeof image == 3820u;
+    image.synth[0].step[0] ^= 1u;
+    ok &= !proj7_valid(&image);
+    bad += check("FUN7 project envelope: 3820-byte layout, globals, selection and checksum rejection", ok);
+
+    return bad;
+}
+
 /* the value parameter k (old id) of track t had in the old project */
 static int16_t oldv(uint32_t t, uint32_t k) { return (int16_t)(t * 100u + k * 3u + 1u); }
 
@@ -127,6 +228,7 @@ int main(void)
     } buf;
     uint32_t i, t;
     int bad = 0, ok;
+    bad += project_v7_codec_test();
 
     bad += check("legacy track dimensions remain fixed",
                  PROJ_OLD_NPART == 3u && PROJ_OLD_NTRK == 4u && PROJ_OLD_TRK_DRUM == 3u &&
