@@ -159,6 +159,8 @@ _Static_assert(sizeof(project_v2_t) == 2552u && sizeof(project_v1_t) == 688u && 
 _Static_assert(sizeof(project_t) == 3816u && sizeof(project_t) <= 3840u,
                "FUN6 in-memory/cache layout is frozen at 3816 bytes; extend through a new codec");
 project_t proj_slot[4] __attribute__((section(".noinit")));
+/* FUN7 conversion workspace; flash image staging reuses proj_tmp below. */
+static project_v7_data_t proj7_work;
 
 UI_SMALL static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 {
@@ -396,6 +398,195 @@ UI_SMALL static int proj_import(project_t *q, const void *b, int n)
            proj_from_v2(q, (const project_v2_t *)b, n) || proj_from_v1(q, (const project_v1_t *)b, n);
 }
 
+/* ---- FUN6 runtime/cache <-> FUN7 flash project --------------------------------
+ * The live runtime and warm-reset cache remain FUN6 for this bridge milestone.
+ * Every new flash project/section/autosave is FUN7. The fourth synth is written
+ * as a canonical empty track until the five-track runtime is activated.
+ * A valid FUN7 with active fourth-synth data is rejected (return -1), never
+ * silently truncated by this three-synth runtime.
+ */
+UI_SMALL static void proj7_synth_default(proj7_synth_data_t *d)
+{
+    uint32_t i;
+    memset(d, 0, sizeof *d);
+    for (i = 0; i < P_E0; i++)
+        d->p[i] = TP[i].def;
+    for (i = 0; i < PROJ7_ENGINE_PARAMS; i++)
+        d->p[P_E0 + i] = ENGINES[0]->edit[i].def;
+    d->engine = 0;
+    d->preset = 0;
+    for (i = 0; i < NSTEP; i++)
+        d->step[i].time = ST_REST;
+    for (i = 0; i < NLOCK; i++)
+        d->lock[i].step = LOCK_FREE;
+}
+
+UI_SMALL static int proj7_synth_is_default(const proj7_synth_data_t *d)
+{
+    uint32_t i;
+    step_t empty;
+    if (!d || d->engine || d->preset)
+        return 0;
+    for (i = 0; i < P_E0; i++)
+        if (d->p[i] != TP[i].def)
+            return 0;
+    for (i = 0; i < PROJ7_ENGINE_PARAMS; i++)
+        if (d->p[P_E0 + i] != ENGINES[0]->edit[i].def)
+            return 0;
+    memset(&empty, 0, sizeof empty);
+    empty.time = ST_REST;
+    for (i = 0; i < NSTEP; i++)
+        if (memcmp(&d->step[i], &empty, sizeof empty) || d->mf[i])
+            return 0;
+    for (i = 0; i < NLOCK; i++)
+        if (d->lock[i].step != LOCK_FREE || d->lock[i].param || d->lock[i].val)
+            return 0;
+    return 1;
+}
+
+UI_SMALL static void proj7_lock_canonical(plock_t *d, const plock_t *s, uint32_t engine, int drum)
+{
+    const param_desc_t *desc;
+    uint32_t id;
+    if (s->step == LOCK_FREE || s->step >= NSTEP || s->param >= P_COUNT || !p_lockable(s->param)) {
+        d->step = LOCK_FREE;
+        d->param = 0;
+        d->val = 0;
+        return;
+    }
+    id = s->param;
+    if (drum && id == P_E0)
+        desc = &DRUM_KIT_DESC;
+    else if (id >= P_E0)
+        desc = &ENGINES[engine]->edit[id - P_E0];
+    else
+        desc = &TP[id];
+    d->step = s->step;
+    d->param = s->param;
+    d->val = (int16_t)clamp(s->val, desc->min, desc->max);
+}
+
+UI_SMALL static int proj7_from_v6(project_v7_t *out, const project_t *in)
+{
+    uint32_t i, k;
+    if (!out || !in || in->sel >= PROJ_OLD_NTRK)
+        return 0;
+    memset(&proj7_work, 0, sizeof proj7_work);
+    memcpy(proj7_work.g, in->g, sizeof proj7_work.g);
+    /* FUN6 drum index 3 becomes FUN7 track index 4. */
+    proj7_work.sel = (uint8_t)(in->sel == PROJ_OLD_TRK_DRUM ? PROJ7_TRACKS - 1u : in->sel);
+    proj7_work.drdly = in->drdly;
+    memcpy(proj7_work.rsv, in->rsv, sizeof proj7_work.rsv);
+
+    for (i = 0; i < PROJ_OLD_NPART; i++) {
+        const proj_trk_t *src = &in->t[i];
+        proj7_synth_data_t *dst = &proj7_work.synth[i];
+        uint32_t engine = (uint32_t)src->engine % NENGINES;
+        for (k = 0; k < P_COUNT; k++) {
+            const param_desc_t *desc = k >= P_E0 ? &ENGINES[engine]->edit[k - P_E0] : &TP[k];
+            dst->p[k] = (int16_t)clamp(pt_get(src, k), desc->min, desc->max);
+        }
+        dst->engine = src->engine; /* retain foreign engine IDs for the safe load fallback */
+        dst->preset = src->preset;
+        memcpy(dst->step, src->step, sizeof dst->step);
+        for (k = 0; k < NSTEP; k++) {
+            step_t *st = &dst->step[k];
+            uint32_t j;
+            if (st->n > 4u) st->n = 4u;
+            if (st->time > ST_REST) st->time = ST_REST;
+            st->vel &= 127u;
+            for (j = 0; j < 4u; j++) st->note[j] &= 127u;
+        }
+        memcpy(dst->mf, src->mf, sizeof dst->mf);
+        for (k = 0; k < NLOCK; k++)
+            proj7_lock_canonical(&dst->lock[k], &src->lock[k], engine, 0);
+    }
+
+    proj7_synth_default(&proj7_work.synth[PROJ7_SYNTH_TRACKS - 1u]);
+
+    {
+        const proj_trk_t *src = &in->t[PROJ_OLD_TRK_DRUM];
+        proj7_drum_data_t *dst = &proj7_work.drum;
+        for (k = 0; k < PROJ7_COMMON; k++)
+            dst->p[k] = (int16_t)clamp(pt_get(src, k), TP[k].min, TP[k].max);
+        dst->p[P_E0] = (int16_t)clamp(pt_get(src, P_E0), DRUM_KIT_DESC.min, DRUM_KIT_DESC.max);
+        for (k = 0; k < 7u; k++)
+            dst->tune_decay[k] = src->e[k + 1u];
+        memcpy(dst->step, src->dstep, sizeof dst->step);
+        memcpy(dst->mf, src->mf, sizeof dst->mf);
+        for (k = 0; k < NLOCK; k++)
+            proj7_lock_canonical(&dst->lock[k], &src->lock[k], 0u, 1);
+    }
+    return proj7_project_pack(out, &proj7_work);
+}
+
+/* Return 1 for a representable FUN7 image, 0 for invalid/corrupt data, and -1
+ * for a valid FUN7 image whose fourth synth or selection this bridge cannot run. */
+UI_SMALL static int proj7_to_v6(const project_v7_t *in, project_t *out)
+{
+    uint32_t i, k;
+    if (!in || !out || !proj7_project_unpack(in, &proj7_work))
+        return 0;
+    if (!proj7_synth_is_default(&proj7_work.synth[PROJ7_SYNTH_TRACKS - 1u]) ||
+        proj7_work.sel == PROJ7_SYNTH_TRACKS - 1u)
+        return -1;
+    memset(out, 0, sizeof *out);
+    out->magic = PROJ_MAGIC;
+    out->size = sizeof *out;
+    memcpy(out->g, proj7_work.g, sizeof out->g);
+    /* FUN7 drum index 4 maps back to FUN6 drum index 3. */
+    out->sel = (uint8_t)(proj7_work.sel == PROJ7_TRACKS - 1u ? PROJ_OLD_TRK_DRUM : proj7_work.sel);
+    out->drdly = proj7_work.drdly;
+    memcpy(out->rsv, proj7_work.rsv, sizeof out->rsv);
+    for (i = 0; i < PROJ_OLD_NPART; i++) {
+        proj_trk_t *dst = &out->t[i];
+        const proj7_synth_data_t *src = &proj7_work.synth[i];
+        proj_trk_plain(dst);
+        for (k = 0; k < P_COUNT; k++)
+            pt_set(dst, k, src->p[k]);
+        dst->engine = src->engine;
+        dst->preset = src->preset;
+        memcpy(dst->step, src->step, sizeof dst->step);
+        memcpy(dst->mf, src->mf, sizeof dst->mf);
+        memcpy(dst->lock, src->lock, sizeof dst->lock);
+    }
+    {
+        proj_trk_t *dst = &out->t[PROJ_OLD_TRK_DRUM];
+        const proj7_drum_data_t *src = &proj7_work.drum;
+        proj_trk_plain(dst);
+        for (k = 0; k <= P_E0; k++)
+            pt_set(dst, k, src->p[k]);
+        for (k = 0; k < 7u; k++)
+            dst->e[k + 1u] = src->tune_decay[k];
+        dst->engine = 0;
+        dst->preset = 0;
+        memcpy(dst->dstep, src->step, sizeof dst->dstep);
+        memcpy(dst->mf, src->mf, sizeof dst->mf);
+        memcpy(dst->lock, src->lock, sizeof dst->lock);
+    }
+    out->sum = proj_sum(out);
+    return proj_ok(out);
+}
+
+/* Accept FUN7 or any historical FUN1..FUN6 image. The raw staging buffer may
+ * alias out (both are proj_tmp); legacy bytes are decoded into runtime first,
+ * then the buffer is overwritten with the canonical FUN7 representation. */
+UI_SMALL static int proj7_import(project_v7_t *out, const void *raw, int n, project_t *runtime)
+{
+    if (!out || !raw || !runtime || n <= 0)
+        return 0;
+    if (n == (int)sizeof *out && proj7_valid((const project_v7_t *)raw)) {
+        if ((const void *)out != raw)
+            memcpy(out, raw, sizeof *out);
+        return proj7_to_v6(out, runtime);
+    }
+    if (!proj_import(runtime, raw, n))
+        return 0;
+    if (!proj7_from_v6(out, runtime))
+        return 0;
+    return proj7_to_v6(out, runtime);
+}
+
 /* ---- the working project <-> a project_t */
 /* 2.6: GLO > TEXTURE in a project (a song section has its own): in the slots of two globals a project no longer
  * applies (G_DRCH: a setting of the FM-1 now; G_INFO: the CPU readout) and the spare bytes. rsv[0]: 0x80 (there) | SRC
@@ -567,8 +758,9 @@ static void proj_apply(const project_t *p, int all)
 #endif
 static uint8_t sec_dirty, song_dirty;           /* live sections / the song: in RAM, not yet in flash */
 #if FELUCCA_FLASH
-/* slot from flash into RAM (format 5, or an old one converted) */
+/* slot from flash into RAM (FUN7, FUN6, or an older format converted) */
 static union {
+    project_v7_t v7;
     project_t v6;
     project_v5_t v5;
     project_v4_t v4;
@@ -581,8 +773,13 @@ UI_SMALL static void proj_fetch(uint32_t slot)
 {
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), &proj_tmp, sizeof proj_tmp);
-    if (!proj_import(q, &proj_tmp, n))
+    int rc = proj7_import(&proj_tmp.v7, &proj_tmp, n, q);
+    if (rc <= 0) {
         q->magic = 0;
+        return;
+    }
+    if (n != (int)sizeof proj_tmp.v7)
+        sec_dirty |= (uint8_t)(1u << (slot & 3u)); /* migrate FUN1..FUN6 on the next quiet flush */
 }
 #include "fm6_bank.c"                           /* the FM6 patch bank (eng_fm6.c PTCH B1..B27): staged in proj_tmp */
 #endif
@@ -597,7 +794,8 @@ UI_SMALL static void project_save(uint32_t slot)
     proj_capture(p);
 #if FELUCCA_FLASH
     if (flash_ok) {
-        if (st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p))
+        if (!proj7_from_v6(&proj_tmp.v7, p) ||
+            st_save(OBJ_PROJECT0 + (slot & 3u), &proj_tmp.v7, sizeof proj_tmp.v7))
             ui_message("SAVE ERROR");
         else
             ui_say("SAVED SECTION ", SEC_NAME[slot & 3u]);
@@ -725,10 +923,12 @@ UI_SMALL static void autosave_tick(void)                /* main loop */
         return;
     autosave_checked = now;
     proj_capture(&autosave_buf);
-    h = autosave_buf.sum;
+    if (!proj7_from_v6(&proj_tmp.v7, &autosave_buf))
+        return;
+    h = proj_tmp.v7.sum;
     if (h == autosave_hash || !audio_quiet())
         return;
-    if (st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0)
+    if (st_save(OBJ_AUTOSAVE, &proj_tmp.v7, sizeof proj_tmp.v7) == 0)
         autosave_hash = h;
     autosave_ms = fm1_ms;
 #endif
@@ -739,23 +939,22 @@ static uint8_t drch_seed;                           /* a settings object as 2.5 
 UI_SMALL static void autosave_resume(void)              /* power-on: the project as it was left (felucca_init) */
 {
 #if FELUCCA_FLASH
-    project_t *q = &autosave_buf;
     int n;
     if (!flash_ok)
         return;
     n = st_load(OBJ_AUTOSAVE, &proj_tmp, sizeof proj_tmp);
-    if (!proj_import(q, &proj_tmp, n))
+    if (proj7_import(&proj_tmp.v7, &proj_tmp, n, &autosave_buf) <= 0)
         return;
-    autosave_hash = q->sum;
-    if (drch_seed && !(q->rsv[0] & 0x80u) && q->g[G_DRCH] >= 0 && q->g[G_DRCH] <= 16 && q->g[G_DRCH] != midi_set[3]) {
-        midi_set[3] = (uint8_t)q->g[G_DRCH];          /* (2.6) updated from 2.5: GLO > DRUMS > CH as it was there (a
-                                                     * project's then, a setting of the FM-1 now), kept in the settings */
+    autosave_hash = n == (int)sizeof proj_tmp.v7 ? proj_tmp.v7.sum : 0u; /* schedule legacy autosave migration */
+    if (drch_seed && !(autosave_buf.rsv[0] & 0x80u) && autosave_buf.g[G_DRCH] >= 0 &&
+        autosave_buf.g[G_DRCH] <= 16 && autosave_buf.g[G_DRCH] != midi_set[3]) {
+        midi_set[3] = (uint8_t)autosave_buf.g[G_DRCH]; /* (2.6) migrate the pre-2.6 drum channel setting */
         settings_later = 1;
     }
     drch_seed = 0;
-    proj_apply(q, 1);
-    song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
-    proj_foreign_parts(q);                         /* (2.8.4) Clipper's working project: its own sounds, default */
+    proj_apply(&autosave_buf, 1);
+    song.sel = (uint8_t)(autosave_buf.sel < NTRK ? autosave_buf.sel : 0u);
+    proj_foreign_parts(&autosave_buf);              /* (2.8.4) Clipper's working project: its own sounds, default */
     for (n = 0; n < PROJ_OLD_NPART; n++)
         trk[n].engine = trk[n].eng_req;        /* (nothing sounds yet: no fade) */
 #endif
@@ -861,8 +1060,16 @@ UI_SMALL static void persist_boot(void)                    /* before settings_in
                 proj_fetch(i);
             } else {
                 int n = st_load(OBJ_PROJECT0 + i, &proj_tmp, sizeof proj_tmp);
-                if (n != (int)sizeof proj_slot[i] || memcmp(&proj_tmp.v6, &proj_slot[i], sizeof proj_slot[i]))
-                    sec_dirty |= (uint8_t)(1u << i);
+                if (n <= 0) {
+                    sec_dirty |= (uint8_t)(1u << i); /* a warm-reset section not yet written */
+                } else {
+                    int rc = proj7_import(&proj_tmp.v7, &proj_tmp, n, &autosave_buf);
+                    if (rc < 0)
+                        proj_slot[i].magic = 0; /* valid newer FUN7: do not write stale FUN6 over it */
+                    else if (!rc || n != (int)sizeof proj_tmp.v7 ||
+                             memcmp(&autosave_buf, &proj_slot[i], sizeof autosave_buf))
+                        sec_dirty |= (uint8_t)(1u << i);
+                }
             }
     }
     dsu_boot();                                    /* SLOOP 2.5: the SYN kits (after the settings) */
@@ -1098,13 +1305,13 @@ UI_SMALL static uint32_t project_restore(uint32_t slot, const void *raw, uint32_
         sec_dirty &= (uint8_t)~(1u << slot);
         return 0;
     }
-    if (!proj_import(&autosave_buf, raw, (int)n))
+    if (proj7_import(&proj_tmp.v7, raw, (int)n, &autosave_buf) <= 0)
         return 2;
     if (slot == 4u) {
         project_apply(&autosave_buf);
         return 0;
     }
-    if (!flash_ok || st_save(OBJ_PROJECT0 + slot, &autosave_buf, sizeof autosave_buf))
+    if (!flash_ok || st_save(OBJ_PROJECT0 + slot, &proj_tmp.v7, sizeof proj_tmp.v7))
         return 4;
     memcpy(&proj_slot[slot], &autosave_buf, sizeof proj_slot[slot]);
     sec_dirty &= (uint8_t)~(1u << slot);
@@ -1149,7 +1356,8 @@ UI_SMALL static void sections_write(void)                        /* the dirty se
 #if FELUCCA_FLASH
     if (flash_ok)
         for (i = 0; i < 4u; i++)
-            if (((sec_dirty >> i) & 1u) && st_save(OBJ_PROJECT0 + i, &proj_slot[i], sizeof proj_slot[i]) == 0)
+            if (((sec_dirty >> i) & 1u) && proj7_from_v6(&proj_tmp.v7, &proj_slot[i]) &&
+                st_save(OBJ_PROJECT0 + i, &proj_tmp.v7, sizeof proj_tmp.v7) == 0)
                 sec_dirty &= (uint8_t)~(1u << i);       /* (a failed write stays dirty: tried again later) */
     if (!flash_ok)
 #endif
@@ -1168,8 +1376,9 @@ UI_SMALL static void persist_flush_now(void)
 #if FELUCCA_FLASH
     if (flash_ok && !arrangement_clock.running) {     /* (a song playing: the tracks hold a section) */
         proj_capture(&autosave_buf);
-        if (autosave_buf.sum != autosave_hash && st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0)
-            autosave_hash = autosave_buf.sum;
+        if (proj7_from_v6(&proj_tmp.v7, &autosave_buf) && proj_tmp.v7.sum != autosave_hash &&
+            st_save(OBJ_AUTOSAVE, &proj_tmp.v7, sizeof proj_tmp.v7) == 0)
+            autosave_hash = proj_tmp.v7.sum;
     }
 #endif
 }

@@ -199,16 +199,19 @@ static int proj7_lock_get(plock_t *d, const uint8_t in[PROJ7_LOCK_BYTES])
     return 1;
 }
 
+static const param_desc_t PROJ7_RAW_EDIT_DESC = {"RAW", F_INT, -64, 127, 0, 0, 0};
+
 int proj7_synth_pack(proj7_synth_t *d, const int16_t p[P_COUNT], uint8_t engine, uint8_t preset,
                      const step_t steps[NSTEP], const uint8_t mf[NSTEP], const plock_t locks[NLOCK])
 {
     uint32_t i;
-    if (!d || !p || !steps || !mf || !locks || engine >= NENGINES ||
-        !proj7_common_put(d->p, p))
+    if (!d || !p || !steps || !mf || !locks || !proj7_common_put(d->p, p))
         return 0;
-    for (i = 0; i < PROJ7_ENGINE_PARAMS; i++)
-        if (!proj7_byte_put(&d->e[i], p[P_E0 + i], &ENGINES[engine]->edit[i]))
+    for (i = 0; i < PROJ7_ENGINE_PARAMS; i++) {
+        const param_desc_t *desc = engine < NENGINES ? &ENGINES[engine]->edit[i] : &PROJ7_RAW_EDIT_DESC;
+        if (!proj7_byte_put(&d->e[i], p[P_E0 + i], desc))
             return 0;
+    }
     for (i = 0; i < NSTEP; i++)
         if (!proj7_step_valid(&steps[i]))
             return 0;
@@ -228,12 +231,14 @@ int proj7_synth_unpack(const proj7_synth_t *s, int16_t p[P_COUNT], uint8_t *engi
                        step_t steps[NSTEP], uint8_t mf[NSTEP], plock_t locks[NLOCK])
 {
     uint32_t i;
-    if (!s || !p || !engine || !preset || !steps || !mf || !locks || s->engine >= NENGINES)
+    if (!s || !p || !engine || !preset || !steps || !mf || !locks)
         return 0;
     memset(p, 0, P_COUNT * sizeof p[0]);
     proj7_common_get(p, s->p);
-    for (i = 0; i < PROJ7_ENGINE_PARAMS; i++)
-        p[P_E0 + i] = proj7_byte_get(s->e[i], &ENGINES[s->engine]->edit[i]);
+    for (i = 0; i < PROJ7_ENGINE_PARAMS; i++) {
+        const param_desc_t *desc = s->engine < NENGINES ? &ENGINES[s->engine]->edit[i] : &PROJ7_RAW_EDIT_DESC;
+        p[P_E0 + i] = proj7_byte_get(s->e[i], desc);
+    }
     *engine = s->engine;
     *preset = s->preset;
     for (i = 0; i < NSTEP; i++) {

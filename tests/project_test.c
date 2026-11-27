@@ -205,6 +205,112 @@ static int project_v7_codec_test(void)
     return bad;
 }
 
+static int project_v7_migration_test(void)
+{
+    static project_t source, decoded;
+    static project_v7_t image, damaged;
+    static const uint8_t engine_id[PROJ_OLD_NPART] = {0u, 1u, 3u};
+    uint32_t i, k;
+    int ok = 1, bad = 0;
+
+    memset(&source, 0, sizeof source);
+    source.magic = PROJ_MAGIC;
+    source.size = sizeof source;
+    for (i = 0; i < PROJ_NG; i++)
+        source.g[i] = GP[i].def;
+    source.sel = 2u;
+    source.drdly = 19u;
+    source.rsv[0] = 0xE5u;
+    source.rsv[1] = 7u;
+    source.g[G_DRCH] = (int16_t)((101u & 127u) | ((uint32_t)(-37 + 64) & 127u) << 7);
+    source.g[G_INFO] = 90;
+    source.g[G_SAVE] = 0;
+
+    for (i = 0; i < PROJ_OLD_NPART; i++) {
+        proj_trk_t *t = &source.t[i];
+        uint32_t e = engine_id[i];
+        proj_trk_plain(t);
+        for (k = 0; k < P_COUNT; k++) {
+            const param_desc_t *d = k >= P_E0 ? &ENGINES[e]->edit[k - P_E0] : &TP[k];
+            pt_set(t, k, d->def);
+        }
+        t->engine = (uint8_t)e;
+        t->preset = (uint8_t)(i + 2u);
+        for (k = 0; k < NSTEP; k++) {
+            step_t *st = &t->step[k];
+            memset(st, 0, sizeof *st);
+            st->time = ST_REST;
+            if (!(k & 7u)) {
+                st->note[0] = (uint8_t)(36u + i * 5u + k / 8u);
+                st->n = 1u;
+                st->time = ST_NOTE;
+                st->flags = (uint8_t)(SF_ACCENT | SF_LEG);
+                st->vel = (uint8_t)(80u + i);
+                st->lvl = (uint8_t)(k & 0xFFu);
+                st->rat = (uint8_t)(i + 1u);
+            }
+            pt_set_mf(t, k, (int32_t)(k % 31u) - 15, (k % 3u) ? FC_NORM : FC_FILL);
+        }
+        for (k = 0; k < NLOCK; k++) {
+            t->lock[k].step = LOCK_FREE;
+            t->lock[k].param = 0;
+            t->lock[k].val = 0;
+        }
+        t->lock[0].step = (uint8_t)(i + 1u);
+        t->lock[0].param = P_LEVEL;
+        t->lock[0].val = (int16_t)(90u + i);
+    }
+
+    {
+        proj_trk_t *t = &source.t[PROJ_OLD_TRK_DRUM];
+        proj_trk_plain(t);
+        for (k = 0; k < PROJ7_COMMON; k++)
+            pt_set(t, k, TP[k].def);
+        pt_set(t, P_E0, DRUM_KIT_DESC.def);
+        t->engine = 0;
+        t->preset = 0;
+        for (k = 0; k < NSTEP; k++) {
+            memset(&t->dstep[k], 0, sizeof t->dstep[k]);
+            if (!(k & 3u))
+                dstep_set(&t->dstep[k], k % DRUM_LANES, LV_HARD, (k >> 2) & 3u);
+            pt_set_mf(t, k, (int32_t)(k % 17u) - 8, (k % 4u) ? FC_NORM : FC_FILL);
+        }
+        for (k = 0; k < NLOCK; k++) {
+            t->lock[k].step = LOCK_FREE;
+            t->lock[k].param = 0;
+            t->lock[k].val = 0;
+        }
+        t->lock[0].step = 63u;
+        t->lock[0].param = P_E0;
+        t->lock[0].val = DRUM_KIT_DESC.max;
+        for (k = 0; k < 7u; k++)
+            t->e[k + 1u] = (int16_t)(0xBEEFu - k * 0x1234u);
+        source.g[G_SAVE] = (int16_t)(DRUM_TW_MARK | drum_tw_sum(t->e));
+    }
+    source.sum = proj_sum(&source);
+
+    ok = proj7_from_v6(&image, &source) && proj7_valid(&image) && proj7_to_v6(&image, &decoded) == 1;
+    ok &= !memcmp(&source, &decoded, sizeof source);
+    bad += check("FUN7 migration: FUN6 -> FUN7 -> FUN6 preserves three synths, drums, metadata and every pattern field", ok);
+
+    source.sel = PROJ_OLD_TRK_DRUM;
+    source.sum = proj_sum(&source);
+    ok = proj7_from_v6(&image, &source) && image.sel == PROJ7_TRACKS - 1u &&
+         proj7_to_v6(&image, &decoded) == 1 && decoded.sel == PROJ_OLD_TRK_DRUM;
+    bad += check("FUN7 migration maps the legacy drum selection from track 4 to track 5 and back", ok);
+
+    ok = proj7_import(&image, &source, (int)sizeof source, &decoded) == 1 && proj7_valid(&image) &&
+         proj7_to_v6(&image, &decoded) == 1 && !memcmp(&source, &decoded, sizeof source);
+    bad += check("FUN7 import bridge accepts legacy FUN6 and normalises it to FUN7", ok);
+
+    damaged = image;
+    damaged.synth[PROJ7_SYNTH_TRACKS - 1u].step[0] ^= 1u;
+    proj7_seal(&damaged);
+    ok = proj7_import(&image, &damaged, (int)sizeof damaged, &decoded) == -1;
+    bad += check("bridge refuses a valid FUN7 image with fourth-synth data instead of discarding it", ok);
+    return bad;
+}
+
 /* the value parameter k (old id) of track t had in the old project */
 static int16_t oldv(uint32_t t, uint32_t k) { return (int16_t)(t * 100u + k * 3u + 1u); }
 
@@ -306,6 +412,7 @@ int main(void)
     uint32_t i, t;
     int bad = 0, ok;
     bad += project_v7_codec_test();
+    bad += project_v7_migration_test();
 
     bad += check("legacy track dimensions remain fixed",
                  PROJ_OLD_NPART == 3u && PROJ_OLD_NTRK == 4u && PROJ_OLD_TRK_DRUM == 3u &&
