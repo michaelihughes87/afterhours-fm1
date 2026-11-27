@@ -30,6 +30,9 @@
 #define PROJ_MAGIC_V3 0x46554E33u              /* "FUN3": SLOOP 1.x; read only */
 #define PROJ_MAGIC_V2 0x46554E32u              /* "FUN2": four tracks, PROJ_NP_V2 parameters; read only */
 #define PROJ_MAGIC_V1 0x46554E31u              /* "FUN1": one instrument; loads into track 1 */
+#define PROJ_OLD_NPART 3u                     /* formats 1..6: three synth parts */
+#define PROJ_OLD_NTRK 4u                      /* formats 1..6: three synth parts + drums */
+#define PROJ_OLD_TRK_DRUM 3u                  /* formats 1..6: drum part is track 4 */
 #define PROJ_NP_V5 61u                         /* P_COUNT of format 5 (P_E0 was 53) */
 #define PROJ_NP_V4 58u                         /* P_COUNT of format 4 (P_E0 was 50) */
 #define PROJ_NP_V3 57u                         /* P_COUNT of format 3 (P_E0 was 49) */
@@ -61,7 +64,7 @@ typedef struct {
     uint32_t magic, size;
     int16_t g[PROJ_NG];
     uint8_t sel, drdly, rsv[2];                /* the selected track; 2.5: G_DRDLY */
-    proj_trk_t t[NTRK];
+    proj_trk_t t[PROJ_OLD_NTRK];
     uint32_t sum;
 } project_t;
 static int16_t pt_get(const proj_trk_t *t, uint32_t id)   /* p[id] of a stored track */
@@ -98,7 +101,7 @@ typedef struct {                               /* format 5, read only */
     uint32_t magic, size;
     int16_t g[PROJ_NG];
     uint8_t sel, drdly, rsv[2];
-    proj_trk_v5_t t[NTRK];
+    proj_trk_v5_t t[PROJ_OLD_NTRK];
     uint32_t sum;
 } project_v5_t;
 typedef struct {                               /* a track of format 4 (SLOOP 2.0 .. 2.3), read only */
@@ -113,7 +116,7 @@ typedef struct {                               /* format 4, read only */
     uint32_t magic, size;
     int16_t g[PROJ_NG];
     uint8_t sel, rsv[3];
-    proj_trk_v4_t t[NTRK];
+    proj_trk_v4_t t[PROJ_OLD_NTRK];
     uint32_t sum;
 } project_v4_t;
 typedef struct { uint8_t note[4], n, time, flags, vel; } step8_t;   /* the steps of formats 1..3 */
@@ -126,7 +129,7 @@ typedef struct {                               /* format 3 (SLOOP 1.x), read onl
     uint32_t magic, size;
     int16_t g[PROJ_NG_V3];
     uint8_t sel, rsv[3];
-    proj_trk_v3_t t[NTRK];
+    proj_trk_v3_t t[PROJ_OLD_NTRK];
     uint32_t sum;
 } project_v3_t;
 typedef struct {                               /* a track of formats 1 and 2, read only */
@@ -138,7 +141,7 @@ typedef struct {                               /* format 2 (until 0.9), read onl
     uint32_t magic, size;
     int16_t g[PROJ_NG_V2];
     uint8_t sel, rsv[3];
-    proj_trk_v2_t t[NTRK];
+    proj_trk_v2_t t[PROJ_OLD_NTRK];
     uint32_t sum;
 } project_v2_t;
 typedef struct {                               /* format 1 (until 0.5 beta), read only */
@@ -255,7 +258,7 @@ UI_SMALL static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
     q->size = sizeof *q;
     memcpy(q->g, v4->g, sizeof q->g);
     q->sel = v4->sel;
-    for (i = 0; i < NTRK; i++) {
+    for (i = 0; i < PROJ_OLD_NTRK; i++) {
         uint32_t k;
         proj_trk_plain(&q->t[i]);
         for (k = 0; k < PROJ_NC6; k++)                 /* by id up to P_CHORD, the parameters added since: */
@@ -284,7 +287,7 @@ UI_SMALL static int proj_from_v5(project_t *q, const project_v5_t *v5, int n)
     memcpy(q->g, v5->g, sizeof q->g);
     q->sel = v5->sel;
     q->drdly = v5->drdly;
-    for (i = 0; i < NTRK; i++) {
+    for (i = 0; i < PROJ_OLD_NTRK; i++) {
         const proj_trk_v5_t *s = &v5->t[i];
         proj_trk_t *d = &q->t[i];
         proj_trk_plain(d);
@@ -316,8 +319,8 @@ UI_SMALL static void proj_from_v3_ok(project_t *q, const project_v3_t *v3)
     q->size = sizeof *q;
     proj_g_from_old(q->g, v3->g);
     q->sel = v3->sel;
-    for (i = 0; i < NTRK; i++)
-        proj_trk_from_v3(&q->t[i], &v3->t[i], i == TRK_DRUM);
+    for (i = 0; i < PROJ_OLD_NTRK; i++)
+        proj_trk_from_v3(&q->t[i], &v3->t[i], i == PROJ_OLD_TRK_DRUM);
     q->sum = proj_sum(q);
 }
 UI_SMALL static int proj_from_v3(project_t *q, const project_v3_t *v3, int n)
@@ -341,8 +344,8 @@ UI_SMALL static int proj_from_v2(project_t *q, const project_v2_t *v2, int n)
     memset(v3, 0, sizeof *v3);
     memcpy(v3->g, v2->g, sizeof v3->g);
     v3->sel = v2->sel;
-    for (i = 0; i < NTRK; i++)
-        proj_trk_v2_to_v3(&v3->t[i], &v2->t[i], i == TRK_DRUM);
+    for (i = 0; i < PROJ_OLD_NTRK; i++)
+        proj_trk_v2_to_v3(&v3->t[i], &v2->t[i], i == PROJ_OLD_TRK_DRUM);
     proj_from_v3_ok(q, v3);
     return 1;
 }
@@ -360,14 +363,14 @@ UI_SMALL static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
     memcpy(v3->g, v1->g, sizeof v3->g);
     proj_trk_v2_to_v3(&v3->t[0], &v1->t, 0);
     proj_from_v3_ok(q, v3);
-    for (i = 1; i < NTRK; i++) {               /* the other tracks: their defaults, no steps */
+    for (i = 1; i < PROJ_OLD_NTRK; i++) {               /* the other tracks: their defaults, no steps */
         uint32_t k;
         for (k = 0; k < P_COUNT; k++)
             pt_set(&q->t[i], k, k >= P_E0 ? ENGINES[trk_def_engine(i)]->edit[k - P_E0].def : TP[k].def);
         q->t[i].engine = (uint8_t)trk_def_engine(i);
         q->t[i].preset = 0xFF;                 /* 0xFF: its default preset (project_load) */
         memset(q->t[i].step, 0, sizeof q->t[i].step);
-        if (i != TRK_DRUM)
+        if (i != PROJ_OLD_TRK_DRUM)
             for (k = 0; k < NSTEP; k++)
                 q->t[i].step[k].time = ST_REST;
         proj_trk_plain(&q->t[i]);
@@ -440,12 +443,12 @@ UI_SMALL static void drum_tw_put(project_t *p)
                 w[(l * 7u + b) / 16u] |= (uint16_t)(1u << ((l * 7u + b) % 16u));
     }
     for (l = 0; l < 7u; l++)
-        p->t[TRK_DRUM].e[l + 1u] = (int16_t)w[l];
-    p->g[G_SAVE] = (int16_t)(DRUM_TW_MARK | drum_tw_sum(p->t[TRK_DRUM].e));
+        p->t[PROJ_OLD_TRK_DRUM].e[l + 1u] = (int16_t)w[l];
+    p->g[G_SAVE] = (int16_t)(DRUM_TW_MARK | drum_tw_sum(p->t[PROJ_OLD_TRK_DRUM].e));
 }
 static void drum_tw_get(const project_t *p)
 {
-    const int16_t *e = p->t[TRK_DRUM].e;
+    const int16_t *e = p->t[PROJ_OLD_TRK_DRUM].e;
     uint32_t l, b, ok = (uint16_t)p->g[G_SAVE] == (DRUM_TW_MARK | drum_tw_sum(e));
     for (l = 0; l < DRUM_LANES; l++) {
         uint32_t v = 0;
@@ -468,7 +471,7 @@ UI_SMALL static void proj_capture(project_t *p)        /* what is playing now, a
     p->sel = song.sel;
     p->drdly = (uint8_t)song.g[G_DRDLY];
     proj_tx_put(p);
-    for (i = 0; i < NTRK; i++) {
+    for (i = 0; i < PROJ_OLD_NTRK; i++) {
         uint32_t k;
         for (k = 0; k < P_COUNT; k++)
             pt_set(&p->t[i], k, trk[i].p[k]);
@@ -498,15 +501,15 @@ static void proj_apply(const project_t *p, int all)
     song.g[G_DRDLY] = (int16_t)clamp(p->drdly, GP[G_DRDLY].min, GP[G_DRDLY].max);   /* (a load and a section, as REV) */
     proj_tx_get(p);                                     /* GLO > TEXTURE (2.6): a load and a section */
     drum_tw_get(p);                                     /* (2.7) the drum sounds' TUNE and DECAY: a load and a section */
-    for (k = 0; k < NTRK; k++) {
+    for (k = 0; k < PROJ_OLD_NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
-        uint32_t e = k < NPART ? s->engine % NENGINES : 0u;
+        uint32_t e = k < PROJ_OLD_NPART ? s->engine % NENGINES : 0u;
         t->eng_req = (uint8_t)e;
         t->user = 0;                                    /* (no user preset slot is saved) */
         t->lk_n = 0;                                    /* (the locks in force: the values come from the project) */
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
-            const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
+            const param_desc_t *d = k == PROJ_OLD_TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
                                     i >= P_E0 && i <= P_E7 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
             t->p[i] = (int16_t)clamp(pt_get(s, i), d->min, d->max);
         }
@@ -526,7 +529,7 @@ static void proj_apply(const project_t *p, int all)
             const plock_t *l = &s->lock[i];
             uint32_t id = l->param;
             if (l->step < NSTEP && id < P_COUNT && p_lockable(id)) {
-                const param_desc_t *d = k == TRK_DRUM && id == P_E0 ? &DRUM_KIT_DESC :
+                const param_desc_t *d = k == PROJ_OLD_TRK_DRUM && id == P_E0 ? &DRUM_KIT_DESC :
                                         id >= P_E0 && id <= P_E7 ? &ENGINES[e]->edit[id - P_E0] : &TP[id];
                 t->lock[i].step = l->step;
                 t->lock[i].param = (uint8_t)id;
@@ -537,7 +540,7 @@ static void proj_apply(const project_t *p, int all)
                 t->lock[i].val = 0;
             }
         }
-        if (k != TRK_DRUM)
+        if (k != PROJ_OLD_TRK_DRUM)
             for (i = 0; i < NSTEP; i++) {
                 step_t *st = &t->step[i];
                 uint32_t j;
@@ -639,7 +642,7 @@ UI_SMALL static void project_erase(uint32_t slot)
 UI_SMALL static void proj_foreign_parts(const project_t *p)
 {
     uint32_t k;
-    for (k = 0; k < NPART; k++)
+    for (k = 0; k < PROJ_OLD_NPART; k++)
         if (p->t[k].preset != 0xFFu && p->t[k].engine >= NENGINES) {
             set_engine_of(&trk[k], TRK_DEF[k][0]);
             apply_preset_to(&trk[k], TRK_DEF[k][1]);
@@ -659,7 +662,7 @@ UI_SMALL static void project_apply(const project_t *p)
     proj_apply(p, 1);
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
     fm1_irq_on();
-    for (k = 0; k < NPART; k++)                         /* a format 1 project: the default sounds of tracks 2, 3 */
+    for (k = 0; k < PROJ_OLD_NPART; k++)                         /* a format 1 project: the default sounds of tracks 2, 3 */
         if (p->t[k].preset == 0xFFu) {
             apply_preset_to(&trk[k], TRK_DEF[k][1]);
             steps_clear(&trk[k]);
@@ -748,7 +751,7 @@ UI_SMALL static void autosave_resume(void)              /* power-on: the project
     proj_apply(q, 1);
     song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
     proj_foreign_parts(q);                         /* (2.8.4) Clipper's working project: its own sounds, default */
-    for (n = 0; n < NPART; n++)
+    for (n = 0; n < PROJ_OLD_NPART; n++)
         trk[n].engine = trk[n].eng_req;        /* (nothing sounds yet: no fade) */
 #endif
 }
